@@ -105,7 +105,7 @@ export default function Onboarding({ onComplete }) {
       onComplete({ ...form, id: user.id })
     } catch (err) {
       console.error('Error saving profile:', err)
-      alert('Error saving profile. Try again.')
+      alert(`Error saving profile: ${err.message || JSON.stringify(err)}`)
       setSubmitting(false)
     }
   }
