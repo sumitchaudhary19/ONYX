@@ -1,0 +1,248 @@
+import { useState, useEffect } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { LogOut, Shield, Bell, Moon, Sun, Lock, UserX, X, AlertCircle, ChevronRight, CheckCircle2 } from 'lucide-react'
+import { supabase } from '../supabaseClient'
+import { useNavigate } from 'react-router-dom'
+
+function Toast({ message, icon: Icon, color = '#60a5fa', onClose }) {
+  useEffect(() => { const t = setTimeout(onClose, 3000); return () => clearTimeout(t) }, [onClose])
+  return (
+    <motion.div initial={{ opacity: 0, y: 50, scale: 0.9 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 20, scale: 0.9 }}
+      style={{ position: 'fixed', bottom: '24px', left: '50%', transform: 'translateX(-50%)', background: 'rgba(15,23,42,0.95)', border: `1px solid ${color}40`, borderRadius: '16px', padding: '12px 20px', display: 'flex', alignItems: 'center', gap: '12px', boxShadow: '0 10px 40px rgba(0,0,0,0.5)', zIndex: 1000, backdropFilter: 'blur(12px)' }}>
+      {Icon && <Icon style={{ width: 18, height: 18, color }} />}
+      <p style={{ fontSize: '14px', fontWeight: 600, color: '#f8fafc' }}>{message}</p>
+    </motion.div>
+  )
+}
+
+function PrivacyModal({ profile, onClose }) {
+  const [blocked, setBlocked] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    async function load() {
+      const { data } = await supabase.from('blocks').select('*').eq('blocker_id', profile.id)
+      if (data && data.length > 0) {
+        const ids = data.map(d => d.blocked_id)
+        const { data: profs } = await supabase.from('profiles').select('*').in('id', ids)
+        setBlocked(profs || [])
+      }
+      setLoading(false)
+    }
+    load()
+  }, [profile.id])
+
+  const unblock = async (userId) => {
+    await supabase.from('blocks').delete().eq('blocker_id', profile.id).eq('blocked_id', userId)
+    setBlocked(prev => prev.filter(p => p.id !== userId))
+  }
+
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}
+      style={{ position: 'fixed', inset: 0, zIndex: 500, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+      <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }} onClick={e => e.stopPropagation()}
+        style={{ width: '100%', maxWidth: '420px', background: 'linear-gradient(180deg,#0f172a,#020617)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '24px', padding: '24px', display: 'flex', flexDirection: 'column', maxHeight: '70vh' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+          <h3 style={{ fontSize: '16px', fontWeight: 700, color: '#f8fafc' }}>Blocked Users</h3>
+          <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.07)', border: 'none', borderRadius: '8px', padding: '6px', cursor: 'pointer', color: '#94a3b8', display: 'flex' }}><X style={{ width: 14, height: 14 }} /></button>
+        </div>
+        <div style={{ overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          {loading && <p style={{ color: '#64748b', fontSize: '13px', textAlign: 'center', padding: '20px' }}>Loading…</p>}
+          {!loading && blocked.length === 0 && <p style={{ color: '#64748b', fontSize: '13px', textAlign: 'center', padding: '20px' }}>No blocked users.</p>}
+          {blocked.map(b => (
+            <div key={b.id} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', borderRadius: '16px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)' }}>
+              {b.avatar_url ? <img src={b.avatar_url} alt="" style={{ width: 36, height: 36, borderRadius: '10px', objectFit: 'cover' }} /> : <div style={{ width: 36, height: 36, borderRadius: '10px', background: '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, fontSize: '14px' }}>{b.first_name?.[0] || '?'}</div>}
+              <div style={{ flex: 1 }}>
+                <p style={{ fontSize: '14px', fontWeight: 600, color: '#f1f5f9' }}>{b.first_name} {b.last_name}</p>
+                <p style={{ fontSize: '12px', color: '#64748b' }}>@{b.username}</p>
+              </div>
+              <motion.button whileTap={{ scale: 0.9 }} onClick={() => unblock(b.id)}
+                style={{ padding: '6px 12px', borderRadius: '8px', background: 'rgba(255,255,255,0.08)', border: 'none', color: '#f1f5f9', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}>
+                Unblock
+              </motion.button>
+            </div>
+          ))}
+        </div>
+      </motion.div>
+    </motion.div>
+  )
+}
+
+function NotificationsModal({ onClose, showToast }) {
+  const [push, setPush] = useState(localStorage.getItem('onyx_push_enabled') !== 'false')
+  const [email, setEmail] = useState(localStorage.getItem('onyx_email_enabled') === 'true')
+
+  const togglePush = () => { const val = !push; setPush(val); localStorage.setItem('onyx_push_enabled', val.toString()); showToast('Preferences saved') }
+  const toggleEmail = () => { const val = !email; setEmail(val); localStorage.setItem('onyx_email_enabled', val.toString()); showToast('Preferences saved') }
+
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}
+      style={{ position: 'fixed', inset: 0, zIndex: 500, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+      <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }} onClick={e => e.stopPropagation()}
+        style={{ width: '100%', maxWidth: '380px', background: 'linear-gradient(180deg,#0f172a,#020617)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '24px', padding: '24px', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+          <h3 style={{ fontSize: '16px', fontWeight: 700, color: '#f8fafc' }}>Notifications</h3>
+          <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.07)', border: 'none', borderRadius: '8px', padding: '6px', cursor: 'pointer', color: '#94a3b8', display: 'flex' }}><X style={{ width: 14, height: 14 }} /></button>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px', background: 'rgba(255,255,255,0.03)', borderRadius: '16px', marginBottom: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
+          <div>
+            <p style={{ fontSize: '14px', fontWeight: 600, color: '#f1f5f9' }}>Push Notifications</p>
+            <p style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>Receive alerts on your device</p>
+          </div>
+          <motion.div onClick={togglePush} style={{ width: 44, height: 24, borderRadius: '12px', background: push ? '#3b82f6' : 'rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', padding: '2px', cursor: 'pointer', justifyContent: push ? 'flex-end' : 'flex-start' }}>
+            <motion.div layout style={{ width: 20, height: 20, borderRadius: '10px', background: '#fff', boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }} />
+          </motion.div>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px', background: 'rgba(255,255,255,0.03)', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.05)' }}>
+          <div>
+            <p style={{ fontSize: '14px', fontWeight: 600, color: '#f1f5f9' }}>Email Alerts</p>
+            <p style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>Receive missed messages via email</p>
+          </div>
+          <motion.div onClick={toggleEmail} style={{ width: 44, height: 24, borderRadius: '12px', background: email ? '#3b82f6' : 'rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', padding: '2px', cursor: 'pointer', justifyContent: email ? 'flex-end' : 'flex-start' }}>
+            <motion.div layout style={{ width: 20, height: 20, borderRadius: '10px', background: '#fff', boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }} />
+          </motion.div>
+        </div>
+      </motion.div>
+    </motion.div>
+  )
+}
+
+function DangerModal({ profile, onClose }) {
+  const navigate = useNavigate()
+  const [text, setText] = useState('')
+  const [deleting, setDeleting] = useState(false)
+
+  const confirmDelete = async () => {
+    if (text !== 'DELETE') return
+    setDeleting(true)
+    try {
+      await supabase.from('profiles').delete().eq('id', profile.id)
+      await supabase.auth.signOut()
+      navigate('/login')
+    } catch (e) { console.error('Delete error', e) }
+    setDeleting(false)
+  }
+
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}
+      style={{ position: 'fixed', inset: 0, zIndex: 500, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+      <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }} onClick={e => e.stopPropagation()}
+        style={{ width: '100%', maxWidth: '400px', background: 'linear-gradient(180deg,#1e1b4b,#0f172a)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '24px', padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px', boxShadow: '0 20px 60px rgba(239,68,68,0.15)' }}>
+        <div style={{ width: 48, height: 48, borderRadius: '16px', background: 'rgba(239,68,68,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#f87171' }}>
+          <AlertCircle style={{ width: 24, height: 24 }} />
+        </div>
+        <div>
+          <h3 style={{ fontSize: '18px', fontWeight: 700, color: '#f8fafc', marginBottom: '8px' }}>Delete Account</h3>
+          <p style={{ fontSize: '14px', color: '#cbd5e1', lineHeight: 1.5 }}>This action is irreversible. All your chats, groups, and data will be permanently deleted.</p>
+        </div>
+        <div style={{ marginTop: '8px' }}>
+          <p style={{ fontSize: '12px', fontWeight: 600, color: '#94a3b8', marginBottom: '8px' }}>Type DELETE to confirm:</p>
+          <input value={text} onChange={e => setText(e.target.value)} placeholder="DELETE"
+            style={{ width: '100%', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(239,68,68,0.4)', borderRadius: '12px', padding: '12px 16px', color: '#f87171', fontSize: '14px', outline: 'none', fontWeight: 600, letterSpacing: '0.05em' }} />
+        </div>
+        <div style={{ display: 'flex', gap: '12px', marginTop: '12px' }}>
+          <motion.button whileTap={{ scale: 0.95 }} onClick={onClose}
+            style={{ flex: 1, padding: '12px', borderRadius: '12px', background: 'rgba(255,255,255,0.05)', border: 'none', color: '#f1f5f9', fontWeight: 600, cursor: 'pointer' }}>Cancel</motion.button>
+          <motion.button whileTap={text === 'DELETE' ? { scale: 0.95 } : {}} onClick={confirmDelete} disabled={text !== 'DELETE' || deleting}
+            style={{ flex: 1, padding: '12px', borderRadius: '12px', background: text === 'DELETE' ? '#ef4444' : 'rgba(239,68,68,0.2)', color: text === 'DELETE' ? '#fff' : 'rgba(255,255,255,0.4)', border: 'none', fontWeight: 600, cursor: text === 'DELETE' ? 'pointer' : 'not-allowed' }}>
+            {deleting ? 'Deleting…' : 'Delete'}
+          </motion.button>
+        </div>
+      </motion.div>
+    </motion.div>
+  )
+}
+
+export default function SettingsView({ profile, session }) {
+  const navigate = useNavigate()
+  const [toast, setToast] = useState(null)
+  const [showPrivacy, setShowPrivacy] = useState(false)
+  const [showNotif, setShowNotif] = useState(false)
+  const [showDanger, setShowDanger] = useState(false)
+
+  // Appearance State
+  const initialTheme = localStorage.getItem('onyx_theme') || 'dark'
+  const [theme, setTheme] = useState(initialTheme)
+
+  const showMsg = (msg, icon = CheckCircle2, color = '#60a5fa') => setToast({ msg, icon, color })
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut()
+    navigate('/login')
+  }
+
+  const handleChangePassword = () => {
+    const isGoogle = session?.user?.app_metadata?.provider === 'google'
+    if (isGoogle) {
+      showMsg('You are signed in using Google OAuth. Password changes are managed via your Google Account.', AlertCircle, '#f59e0b')
+    } else {
+      showMsg('Password management for email users is not yet configured.', AlertCircle, '#f59e0b')
+    }
+  }
+
+  const toggleTheme = () => {
+    const next = theme === 'dark' ? 'light' : 'dark'
+    setTheme(next)
+    localStorage.setItem('onyx_theme', next)
+    if (next === 'light') {
+      document.documentElement.classList.add('light')
+    } else {
+      document.documentElement.classList.remove('light')
+    }
+    showMsg(`${next === 'dark' ? 'Dark' : 'Light'} theme enabled`)
+  }
+
+  const Section = ({ title, children }) => (
+    <div style={{ marginBottom: '24px' }}>
+      <h3 style={{ fontSize: '13px', fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '12px', paddingLeft: '4px' }}>{title}</h3>
+      <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '16px', overflow: 'hidden' }}>
+        {children}
+      </div>
+    </div>
+  )
+
+  const SettingRow = ({ icon: Icon, title, subtitle, onClick, right, color = '#60a5fa', isDanger = false, border = true }) => (
+    <motion.div whileHover={{ background: 'rgba(255,255,255,0.02)' }} onClick={onClick}
+      style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '14px 16px', cursor: onClick ? 'pointer' : 'default', borderBottom: border ? '1px solid rgba(255,255,255,0.04)' : 'none' }}>
+      <div style={{ width: 36, height: 36, borderRadius: '10px', background: isDanger ? 'rgba(239,68,68,0.1)' : `${color}15`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+        <Icon style={{ width: 18, height: 18, color: isDanger ? '#f87171' : color }} />
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <p style={{ fontSize: '14px', fontWeight: 600, color: isDanger ? '#fca5a5' : '#f1f5f9' }}>{title}</p>
+        {subtitle && <p style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>{subtitle}</p>}
+      </div>
+      {right || (onClick && <ChevronRight style={{ width: 16, height: 16, color: '#475569' }} />)}
+    </motion.div>
+  )
+
+  return (
+    <div style={{ padding: '20px', maxWidth: '600px', margin: '0 auto', width: '100%', height: '100%', overflowY: 'auto' }}>
+      <Section title="Account">
+        <SettingRow icon={Shield} title="Privacy & Security" subtitle="Manage blocked users and visibility" color="#34d399" onClick={() => setShowPrivacy(true)} />
+        <SettingRow icon={Lock} title="Change Password" subtitle="Update your authentication method" color="#a78bfa" border={false} onClick={handleChangePassword} />
+      </Section>
+
+      <Section title="Preferences">
+        <SettingRow icon={Bell} title="Notifications" subtitle="Push and email alert settings" color="#f59e0b" onClick={() => setShowNotif(true)} />
+        <SettingRow icon={theme === 'dark' ? Moon : Sun} title="Appearance" subtitle="Customize the interface" color="#60a5fa" border={false} onClick={toggleTheme} right={<span style={{ fontSize: '12px', color: '#3b82f6', fontWeight: 600, background: 'rgba(59,130,246,0.15)', padding: '4px 8px', borderRadius: '6px', cursor: 'pointer' }}>{theme === 'dark' ? 'Dark Theme' : 'Light Theme'}</span>} />
+      </Section>
+
+      <Section title="Danger Zone">
+        <SettingRow icon={LogOut} title="Log Out" subtitle="Sign out of MNIT Chat" isDanger={true} onClick={handleLogout} />
+        <SettingRow icon={UserX} title="Delete Account" subtitle="Permanently remove your data" isDanger={true} border={false} onClick={() => setShowDanger(true)} />
+      </Section>
+
+      <div style={{ textAlign: 'center', marginTop: '30px', paddingBottom: '30px' }}>
+        <p style={{ fontSize: '12px', color: '#475569' }}>MNIT Chat v0.0.1 Beta</p>
+        <p style={{ fontSize: '11px', color: '#334155', marginTop: '4px' }}>Made for MNIT Students</p>
+      </div>
+
+      <AnimatePresence>
+        {showPrivacy && <PrivacyModal profile={profile} onClose={() => setShowPrivacy(false)} />}
+        {showNotif && <NotificationsModal onClose={() => setShowNotif(false)} showToast={showMsg} />}
+        {showDanger && <DangerModal profile={profile} onClose={() => setShowDanger(false)} />}
+        {toast && <Toast message={toast.msg} icon={toast.icon} color={toast.color} onClose={() => setToast(null)} />}
+      </AnimatePresence>
+    </div>
+  )
+}
