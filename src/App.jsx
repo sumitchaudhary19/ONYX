@@ -22,6 +22,7 @@ class ErrorBoundary extends Component {
           </div>
           <p style={{ fontSize: '18px', fontWeight: 700, color: '#f1f5f9' }}>Something went wrong</p>
           <p style={{ fontSize: '14px', color: '#64748b', maxWidth: '320px', lineHeight: 1.5 }}>The app ran into an error. Try refreshing the page.</p>
+          <pre style={{ fontSize: '11px', color: '#f87171', background: 'rgba(239,68,68,0.1)', borderRadius: '8px', padding: '12px', maxWidth: '90vw', maxHeight: '120px', overflow: 'auto', textAlign: 'left', wordBreak: 'break-all', whiteSpace: 'pre-wrap', border: '1px solid rgba(239,68,68,0.2)' }}>{this.state.error?.toString()}</pre>
           <button onClick={() => window.location.reload()} style={{ marginTop: '8px', padding: '12px 28px', borderRadius: '12px', border: 'none', background: '#2563eb', color: '#fff', fontSize: '14px', fontWeight: 600, cursor: 'pointer' }}>Refresh Page</button>
         </div>
       )
