@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   MessageCircle, Search, Bell, User,
-  Users, Settings, ImagePlus, Aperture
+  Users, Settings, ImagePlus, Aperture, Sparkles
 } from 'lucide-react'
 import Chats from '../views/Chats'
 import SearchView from '../views/Search'
@@ -11,10 +11,12 @@ import NotificationsView from '../views/Notifications'
 import GroupsList from '../views/GroupsList'
 import SettingsView from '../views/SettingsView'
 import Feed from '../views/Feed'
+import HomeFeed from '../views/HomeFeed'
 import SnapCamera from '../views/SnapCamera'
 import { supabase } from '../supabaseClient'
 
 const TABS = [
+  { id: 'home',          label: 'Home',    Icon: Sparkles,     glow: 'blue' },
   { id: 'chats',         label: 'Chats',   Icon: MessageCircle },
   { id: 'groups',        label: 'Groups',  Icon: Users         },
   { id: 'feed',          label: 'Post',    Icon: ImagePlus,    glow: 'violet' },
@@ -30,6 +32,12 @@ const PAGE_VARIANTS = {
 }
 
 const GLOW_STYLES = {
+  blue: {
+    active:   'text-blue-400 drop-shadow-[0_0_8px_rgba(96,165,250,0.9)]',
+    inactive: 'text-blue-400/60 drop-shadow-[0_0_5px_rgba(96,165,250,0.5)]',
+    bg:       'bg-blue-500/20 shadow-[0_0_16px_rgba(96,165,250,0.4)]',
+    badge:    'bg-blue-500',
+  },
   violet: {
     active:   'text-violet-400 drop-shadow-[0_0_8px_rgba(167,139,250,0.9)]',
     inactive: 'text-violet-400/60 drop-shadow-[0_0_5px_rgba(167,139,250,0.5)]',
@@ -45,6 +53,7 @@ const GLOW_STYLES = {
 }
 
 function ViewComponent({ id, profile, session }) {
+  if (id === 'home')          return <HomeFeed          profile={profile} session={session}/>
   if (id === 'chats')         return <Chats             profile={profile} session={session}/>
   if (id === 'groups')        return <GroupsList        profile={profile} session={session}/>
   if (id === 'feed')          return <Feed              profile={profile} session={session}/>
@@ -56,7 +65,7 @@ function ViewComponent({ id, profile, session }) {
 }
 
 export default function MainLayout({ profile, session }) {
-  const [activeTab,    setActiveTab   ] = useState('chats')
+  const [activeTab,    setActiveTab   ] = useState('home')
   const [pendingCount, setPendingCount] = useState(0)
   const [showSnap,     setShowSnap    ] = useState(false)
 
@@ -152,13 +161,13 @@ export default function MainLayout({ profile, session }) {
                   <motion.div
                     animate={{ opacity: [0.4, 0.8, 0.4] }}
                     transition={{ repeat: Infinity, duration: 2, ease: 'easeInOut' }}
-                    className={`absolute inset-[-6px] rounded-full blur-md -z-10 ${glow === 'violet' ? 'bg-violet-500/30' : 'bg-yellow-400/30'}`}
+                    className={`absolute inset-[-6px] rounded-full blur-md -z-10 ${glow === 'violet' ? 'bg-violet-500/30' : glow === 'blue' ? 'bg-blue-500/30' : 'bg-yellow-400/30'}`}
                   />
                 )}
               </div>
               <span className={`text-[9px] md:text-[10px] font-bold leading-tight transition-colors duration-200
                 ${glowStyle
-                  ? (glow === 'violet' ? 'text-violet-300' : 'text-yellow-300')
+                  ? (glow === 'violet' ? 'text-violet-300' : glow === 'blue' ? 'text-blue-300' : 'text-yellow-300')
                   : (isActive ? 'text-white' : 'text-slate-500')}
               `}>
                 {label}
@@ -203,8 +212,8 @@ export default function MainLayout({ profile, session }) {
               <img src="/onyx_logo.jpg" alt="Onyx" className="w-8 h-8 rounded-full object-cover drop-shadow-[0_0_8px_rgba(37,99,235,0.6)]" />
             </div>
             <div>
-              <h1 className={`text-[17px] font-bold text-white leading-tight ${activeTab === 'chats' ? 'animate-onyx-glow' : ''}`}>
-                {activeTab === 'feed' ? 'Posts' : activeTab === 'settings' ? 'Settings' : TABS.find(t => t.id === activeTab)?.label || 'ONYX'}
+              <h1 className={`text-[17px] font-bold text-white leading-tight ${activeTab === 'home' ? 'animate-onyx-glow' : ''}`}>
+                {activeTab === 'feed' ? 'Global Posts' : activeTab === 'home' ? 'Home' : activeTab === 'settings' ? 'Settings' : TABS.find(t => t.id === activeTab)?.label || 'ONYX'}
               </h1>
               <p className="text-[11px] text-slate-400 mt-0.5 font-medium tracking-widest uppercase">ONYX Platform</p>
             </div>

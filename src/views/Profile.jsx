@@ -1,5 +1,6 @@
 import{useState,useRef,useEffect}from'react'
 import{motion,AnimatePresence}from'framer-motion'
+import{useNavigate}from'react-router-dom'
 import{Camera,Edit3,LogOut,Hash,FileText,Mail,GraduationCap,Save,X,Eye,Upload,AlertCircle,BadgeCheck,Activity,Clock,Zap,Shield,MoreVertical,Ban,Info,ChevronRight}from'lucide-react'
 import{supabase}from'../supabaseClient'
 
@@ -75,12 +76,12 @@ function AvatarModal({profile,onClose,onAvatarChanged}){
   )
 }
 
-function StatCard({value,label,color='#60a5fa'}){
+function StatCard({value,label,color='#60a5fa',onClick}){
   return(
-    <div style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',padding:'16px 8px',borderRadius:'16px',background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.07)'}}>
+    <motion.div whileTap={onClick?{scale:0.95}:{}} onClick={onClick} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',padding:'16px 8px',borderRadius:'16px',background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.07)',cursor:onClick?'pointer':'default'}}>
       <span style={{fontSize:'22px',fontWeight:800,color}}>{value}</span>
       <span style={{fontSize:'11px',color:'#64748b',marginTop:4,fontWeight:500}}>{label}</span>
-    </div>
+    </motion.div>
   )
 }
 
@@ -107,6 +108,58 @@ function SectionCard({title,icon:Icon,iconColor='#60a5fa',children}){
       </div>
       {children}
     </div>
+  )
+}
+
+/* Friends List Modal */
+function FriendsListModal({profile,onClose}){
+  const[friends,setFriends]=useState([])
+  const[loading,setLoading]=useState(true)
+  const navigate=useNavigate()
+  useEffect(()=>{
+    async function load(){
+      const{data:reqs}=await supabase.from('friend_requests').select('sender_id,receiver_id').eq('status','accepted').or(`sender_id.eq.${profile.id},receiver_id.eq.${profile.id}`)
+      if(!reqs?.length){setFriends([]);setLoading(false);return}
+      const ids=reqs.map(r=>r.sender_id===profile.id?r.receiver_id:r.sender_id)
+      const{data:p}=await supabase.from('profiles').select('id,first_name,last_name,username,avatar_url').in('id',ids)
+      setFriends(p||[]);setLoading(false)
+    }
+    load()
+  },[profile.id])
+  return(
+    <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}}
+      onClick={onClose}
+      style={{position:'fixed',inset:0,zIndex:300,background:'rgba(0,0,0,0.8)',display:'flex',alignItems:'flex-end',justifyContent:'center',padding:'0 12px 24px'}}>
+      <motion.div initial={{y:80}} animate={{y:0}} exit={{y:80}} transition={{type:'spring',stiffness:300,damping:28}}
+        onClick={e=>e.stopPropagation()}
+        style={{width:'100%',maxWidth:'460px',background:'linear-gradient(180deg,#0d1630,#080e22)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:'24px 24px 20px 20px',padding:'20px',maxHeight:'75vh',display:'flex',flexDirection:'column'}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'16px'}}>
+          <h3 style={{fontSize:'16px',fontWeight:700,color:'#f0f4ff'}}>Your Friends</h3>
+          <button onClick={onClose} style={{background:'rgba(255,255,255,0.07)',border:'none',borderRadius:'8px',padding:'6px',cursor:'pointer',color:'#64748b',display:'flex'}}><X style={{width:14,height:14}}/></button>
+        </div>
+        <div style={{overflowY:'auto',display:'flex',flexDirection:'column',gap:'8px'}}>
+          {loading&&<p style={{color:'#475569',fontSize:'13px',textAlign:'center',padding:'24px'}}>Loading…</p>}
+          {!loading&&friends.length===0&&<p style={{color:'#475569',fontSize:'13px',textAlign:'center',padding:'24px'}}>No friends yet</p>}
+          {friends.map((f,i)=>{
+            const name=[f.first_name,f.last_name].filter(Boolean).join(' ')||'Unknown'
+            const init=name.split(' ').map(s=>s[0]?.toUpperCase()).join('')||'?'
+            return(
+              <div key={f.id} style={{display:'flex',alignItems:'center',gap:'12px',padding:'12px',borderRadius:'16px',background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.06)'}}>
+                {f.avatar_url?<img src={f.avatar_url} alt="" style={{width:44,height:44,borderRadius:'14px',objectFit:'cover',flexShrink:0}}/>:<div style={{width:44,height:44,borderRadius:'14px',flexShrink:0,background:'linear-gradient(135deg,#3b82f6,#8b5cf6)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'15px',fontWeight:700,color:'#fff'}}>{init}</div>}
+                <div style={{flex:1,minWidth:0}}>
+                  <p style={{fontSize:'15px',fontWeight:600,color:'#f1f5f9',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{name}</p>
+                  <p style={{fontSize:'12px',color:'#64748b'}}>@{f.username}</p>
+                </div>
+                <motion.button whileHover={{scale:1.05}} whileTap={{scale:0.95}} onClick={()=>{onClose();navigate(`/user/${f.id}`)}}
+                  style={{padding:'8px 14px',borderRadius:'12px',border:'1px solid rgba(59,130,246,0.5)',background:'linear-gradient(135deg,rgba(37,99,235,0.1),rgba(29,78,216,0.3))',color:'#60a5fa',fontSize:'11px',fontWeight:700,cursor:'pointer',boxShadow:'0 0 12px rgba(37,99,235,0.3)',textTransform:'uppercase',letterSpacing:'0.05em',flexShrink:0}}>
+                  View Profile
+                </motion.button>
+              </div>
+            )
+          })}
+        </div>
+      </motion.div>
+    </motion.div>
   )
 }
 
@@ -276,6 +329,7 @@ export default function Profile({profile:initialProfile}){
   const[menuOpen,setMenuOpen]=useState(false)
   const[showBlocked,setShowBlocked]=useState(false)
   const[showAbout,setShowAbout]=useState(false)
+  const[showFriends,setShowFriends]=useState(false)
   const menuRef=useRef(null)
 
   const[form,setForm]=useState({
@@ -406,7 +460,7 @@ export default function Profile({profile:initialProfile}){
 
       <div style={{padding:'8px 16px 32px',display:'flex',flexDirection:'column',gap:'12px',maxWidth:'600px',margin:'0 auto'}}>
         <div style={{display:'flex',gap:'10px'}}>
-          <StatCard value={friendCount??'—'} label="Friends" color="#60a5fa"/>
+          <StatCard value={friendCount??'—'} label="Friends" color="#60a5fa" onClick={()=>setShowFriends(true)}/>
           <StatCard value="—" label="Chats" color="#a78bfa"/>
           <StatCard value="—" label="Groups" color="#34d399"/>
         </div>
@@ -485,6 +539,9 @@ export default function Profile({profile:initialProfile}){
       </AnimatePresence>
       <AnimatePresence>
         {showAbout&&<AboutModal onClose={()=>setShowAbout(false)}/>}
+      </AnimatePresence>
+      <AnimatePresence>
+        {showFriends&&initialProfile&&<FriendsListModal profile={initialProfile} onClose={()=>setShowFriends(false)}/>}
       </AnimatePresence>
     </div>
   )

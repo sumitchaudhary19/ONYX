@@ -109,6 +109,7 @@ function Bubble({ msg, isMine, myId, onLongPress, replyMsg, navigate }) {
         ? <VoicePlayer url={msg.audio_url} isMine={isMine} />
         : (<>
           {msg.image_url && <img src={msg.image_url} alt="shared" className={`max-w-[220px] shadow-lg ${isMine ? 'rounded-[18px_18px_4px_18px]' : 'rounded-[18px_18px_18px_4px]'} ${msg.content ? 'mb-1.5' : ''}`} />}
+          {msg.video_url && <video src={msg.video_url} controls className={`max-w-[220px] shadow-lg bg-black ${isMine ? 'rounded-[18px_18px_4px_18px]' : 'rounded-[18px_18px_18px_4px]'} ${msg.content ? 'mb-1.5' : ''}`} />}
           {msg.content && (
             <div className={`max-w-[75vw] md:max-w-md px-4 py-2.5 text-[15px] leading-relaxed break-words ${isMine ? 'rounded-[20px_20px_4px_20px] bg-gradient-to-br from-blue-600 to-blue-700 text-white shadow-md' : 'rounded-[20px_20px_20px_4px] bg-white/10 border border-white/10 text-slate-100'}`}>
               {msg.content}

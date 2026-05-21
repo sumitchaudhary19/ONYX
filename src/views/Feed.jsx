@@ -156,7 +156,7 @@ function SharePostModal({ post, currentProfile, onClose }) {
 }
 
 /* ── Post Card ── */
-function PostCard({ post, currentProfile }) {
+export function PostCard({ post, currentProfile }) {
   const [liked, setLiked] = useState(post.user_liked || false)
   const [likeCount, setLikeCount] = useState(post.like_count || 0)
   const [comments, setComments] = useState([])

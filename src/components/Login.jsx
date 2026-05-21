@@ -159,14 +159,6 @@ export default function Login() {
           </div>
         )}
 
-        {/* Disclaimer */}
-        <div className="mt-6 flex items-start gap-2.5 bg-blue-500/10 border border-blue-500/20 rounded-2xl px-4 py-3.5">
-          <Shield className="w-4 h-4 text-blue-400 mt-0.5 flex-shrink-0" />
-          <p className="text-xs text-blue-300 leading-relaxed">
-            <span className="font-semibold text-blue-200">Beta Testing Mode:</span>{' '}
-            You can sign in with any Google account.
-          </p>
-        </div>
       </div>
 
       {/* ── Feature pills ─────────────────────────────── */}
