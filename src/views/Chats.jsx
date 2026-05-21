@@ -163,7 +163,27 @@ export default function Chats({profile}){
     if(!profile?.id)return
     fetchFriends()
     fetchHiddenIds()
-    setupGlobalPresence()
+
+    // Remove any stale presence channel before creating a new one
+    if(presenceChRef.current){
+      supabase.removeChannel(presenceChRef.current)
+      presenceChRef.current=null
+    }
+
+    // Setup presence with unique channel name
+    const presenceName=`chats-presence-${profile.id}-${Date.now()}`
+    const presenceCh=supabase.channel(presenceName)
+    presenceCh.on('presence',{event:'sync'},()=>{
+      const state=presenceCh.presenceState()
+      const ids=new Set(Object.values(state).flatMap(arr=>arr.map(u=>u.user_id)))
+      setOnlineUsers(ids)
+    }).subscribe(async(status)=>{
+      if(status==='SUBSCRIBED'){
+        await presenceCh.track({user_id:profile.id,online_at:new Date().toISOString()})
+      }
+    })
+    presenceChRef.current=presenceCh
+
     const ch=supabase.channel(`friends-list-${profile.id}`)
       .on('postgres_changes',{event:'UPDATE',schema:'public',table:'friend_requests'},
         (payload)=>{ if(payload.new?.status==='accepted')fetchFriends() })
@@ -173,7 +193,11 @@ export default function Chats({profile}){
       .on('postgres_changes',{event:'INSERT',schema:'public',table:'messages',filter:`receiver_id=eq.${profile.id}`},
         (p)=>{ if(!p.new.read_at){ setUnreadCounts(prev=>({...prev,[p.new.sender_id]:(prev[p.new.sender_id]||0)+1})); setLastMessages(prev=>({...prev,[p.new.sender_id]:p.new})) } })
       .subscribe()
-    return()=>{ supabase.removeChannel(ch); supabase.removeChannel(unreadCh) }
+    return()=>{
+      supabase.removeChannel(ch)
+      supabase.removeChannel(unreadCh)
+      if(presenceChRef.current){ supabase.removeChannel(presenceChRef.current); presenceChRef.current=null }
+    }
   },[profile?.id])
 
   // When friends load, fetch unread counts + last messages
@@ -183,20 +207,6 @@ export default function Chats({profile}){
     setupTypingListeners()
     return()=>cleanupTypingListeners()
   },[friends,profile?.id])
-
-  function setupGlobalPresence(){
-    const ch=supabase.channel(`chats-presence-${profile.id}`)
-    ch.on('presence',{event:'sync'},()=>{
-      const state=ch.presenceState()
-      const ids=new Set(Object.values(state).flatMap(arr=>arr.map(u=>u.user_id)))
-      setOnlineUsers(ids)
-    }).subscribe(async(status)=>{
-      if(status==='SUBSCRIBED'){
-        await ch.track({user_id:profile.id,online_at:new Date().toISOString()})
-      }
-    })
-    presenceChRef.current=ch
-  }
 
   async function fetchUnreadAndLastMessages(){
     try{
