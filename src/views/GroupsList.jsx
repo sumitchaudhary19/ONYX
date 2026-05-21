@@ -1,11 +1,18 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Plus, Users, X, ChevronRight, UserPlus } from 'lucide-react'
+import { Plus, Users, X, ChevronRight, UserPlus, MessageCircle } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
 import CreateGroupModal from '../components/CreateGroupModal'
 
 const GRADS = ['linear-gradient(135deg,#3b82f6,#06b6d4)','linear-gradient(135deg,#8b5cf6,#ec4899)','linear-gradient(135deg,#10b981,#14b8a6)','linear-gradient(135deg,#f59e0b,#f97316)','linear-gradient(135deg,#a855f7,#7c3aed)']
+
+function unreadLabel(n){
+  if(n<=0)return null
+  if(n===1)return'1 new message'
+  if(n<=3)return`${n} new messages`
+  return'4+ new messages'
+}
 
 function GAvatar({ g, i, size=50 }) {
   if (g.avatar_url) return <img src={g.avatar_url} alt={g.name} style={{ width:size,height:size,borderRadius:'14px',objectFit:'cover',flexShrink:0 }}/>
@@ -61,11 +68,25 @@ export default function GroupsList({ profile }) {
   const navigate = useNavigate()
   const [groups,setGroups]=useState([])
   const [myIds,setMyIds]=useState(new Set())
+  const [unreadCounts,setUnreadCounts]=useState({})
   const [loading,setLoading]=useState(true)
   const [showCreate,setShowCreate]=useState(false)
   const [joinTarget,setJoinTarget]=useState(null)
 
   useEffect(()=>{ if(profile?.id) load() },[profile?.id])
+
+  useEffect(() => {
+    if (!profile?.id) return
+    const ch = supabase.channel(`group-unread-${profile.id}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'group_messages' }, 
+        (p) => {
+          if (myIds.has(p.new.group_id) && p.new.sender_id !== profile.id) {
+            setUnreadCounts(prev => ({...prev, [p.new.group_id]: (prev[p.new.group_id] || 0) + 1}))
+          }
+        }
+      ).subscribe()
+    return () => supabase.removeChannel(ch)
+  }, [profile?.id, myIds])
 
   async function load() {
     setLoading(true)
@@ -75,15 +96,43 @@ export default function GroupsList({ profile }) {
         supabase.from('group_members').select('group_id').eq('user_id',profile.id)
       ])
       if(e1) throw e1
-      setMyIds(new Set((mine||[]).map(m=>m.group_id)))
+      
+      const myGroupIds = (mine||[]).map(m=>m.group_id)
+      setMyIds(new Set(myGroupIds))
       setGroups(all||[])
+
+      if (myGroupIds.length > 0) {
+        const { data: reads } = await supabase.from('group_message_reads').select('group_id, last_read_at').eq('user_id', profile.id)
+        const readMap = {}
+        ;(reads||[]).forEach(r => readMap[r.group_id] = r.last_read_at)
+
+        const counts = {}
+        const { data: msgs } = await supabase.from('group_messages').select('group_id, created_at, sender_id').in('group_id', myGroupIds)
+        
+        ;(msgs||[]).forEach(m => {
+           if (m.sender_id === profile.id) return // skip our own messages
+           const readAt = readMap[m.group_id]
+           if (!readAt || new Date(m.created_at) > new Date(readAt)) {
+              counts[m.group_id] = (counts[m.group_id] || 0) + 1
+           }
+        })
+        setUnreadCounts(counts)
+      }
     } catch(err) { console.error('[GroupsList]',err) }
     finally { setLoading(false) }
   }
 
+  const handleGroupClick = (g, isMember) => {
+    if (isMember) {
+      setUnreadCounts(prev => ({ ...prev, [g.id]: 0 }))
+      navigate(`/group/room/${g.id}`)
+    } else {
+      setJoinTarget(g)
+    }
+  }
+
   return (
     <div style={{display:'flex',flexDirection:'column',height:'100%',overflow:'hidden'}}>
-
 
       <div style={{flex:1,overflowY:'auto',padding:'0 10px 16px'}}>
         {loading && [1,2,3].map(i=><div key={i} className="skeleton" style={{height:'76px',marginBottom:'6px',borderRadius:'18px'}}/>)}
@@ -99,22 +148,30 @@ export default function GroupsList({ profile }) {
         <AnimatePresence>
           {!loading && groups.map((g,i)=>{
             const isMember=myIds.has(g.id), isAdmin=g.admin_id===profile?.id
+            const unread = unreadCounts[g.id] || 0
+            const badge = unreadLabel(unread)
+            
             return (
               <motion.div key={g.id} layout initial={{opacity:0,y:14}} animate={{opacity:1,y:0}} exit={{opacity:0,scale:0.95}}
                 transition={{delay:Math.min(i*0.05,0.3)}} whileHover={{y:-2,backgroundColor:'rgba(255,255,255,0.05)'}} whileTap={{scale:0.985}}
-                onClick={()=>isMember?navigate(`/group/room/${g.id}`):setJoinTarget(g)}
-                style={{display:'flex',alignItems:'center',gap:'13px',padding:'13px 14px',marginBottom:'5px',borderRadius:'18px',border:'1px solid rgba(255,255,255,0.07)',background:'rgba(255,255,255,0.03)',cursor:'pointer'}}>
+                onClick={()=>handleGroupClick(g, isMember)}
+                style={{display:'flex',alignItems:'center',gap:'13px',padding:'13px 14px',marginBottom:'5px',borderRadius:'18px',border:`1px solid ${unread>0?'rgba(59,130,246,0.25)':'rgba(255,255,255,0.07)'}`,background:unread>0?'rgba(59,130,246,0.05)':'rgba(255,255,255,0.03)',cursor:'pointer'}}>
                 <GAvatar g={g} i={i}/>
                 <div style={{flex:1,minWidth:0}}>
                   <div style={{display:'flex',alignItems:'center',gap:'6px'}}>
-                    <p style={{fontSize:'15px',fontWeight:600,color:'#f0f4ff',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{g.name}</p>
+                    <p style={{fontSize:'15px',fontWeight:unread>0?700:600,color:'#f0f4ff',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{g.name}</p>
                     {isAdmin && <span style={{fontSize:'9px',fontWeight:700,color:'#f59e0b',background:'rgba(245,158,11,0.15)',padding:'2px 6px',borderRadius:'6px',flexShrink:0}}>ADMIN</span>}
                     {isMember&&!isAdmin && <span style={{fontSize:'9px',fontWeight:700,color:'#34d399',background:'rgba(52,211,153,0.12)',padding:'2px 6px',borderRadius:'6px',flexShrink:0}}>MEMBER</span>}
                   </div>
-                  <p style={{fontSize:'12px',color:'#64748b',marginTop:2}}>{g.description||'No description'}</p>
+                  <p style={{fontSize:'12px',color:unread>0?'#94a3b8':'#64748b',marginTop:2,fontWeight:unread>0?600:400}}>{g.description||'No description'}</p>
                 </div>
                 {isMember
-                  ? <ChevronRight style={{width:16,height:16,color:'#475569',flexShrink:0}}/>
+                  ? badge 
+                    ? <motion.div initial={{scale:0.5,opacity:0}} animate={{scale:1,opacity:1}}
+                        style={{flexShrink:0,padding:'5px 10px',borderRadius:'999px',background:'linear-gradient(135deg,#2563eb,#1d4ed8)',boxShadow:'0 0 14px rgba(37,99,235,0.55)',fontSize:'11px',fontWeight:700,color:'#fff',whiteSpace:'nowrap',textAlign:'center'}}>
+                        {badge}
+                      </motion.div>
+                    : <ChevronRight style={{width:16,height:16,color:'#475569',flexShrink:0}}/>
                   : <div style={{display:'flex',alignItems:'center',gap:'4px',padding:'6px 10px',borderRadius:'10px',background:'rgba(37,99,235,0.12)',border:'1px solid rgba(37,99,235,0.25)',flexShrink:0}}>
                       <UserPlus style={{width:12,height:12,color:'#60a5fa'}}/>
                       <span style={{fontSize:'11px',fontWeight:600,color:'#60a5fa'}}>Join</span>

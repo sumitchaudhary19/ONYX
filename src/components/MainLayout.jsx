@@ -76,7 +76,16 @@ export default function MainLayout({ profile, session }) {
     const ch2 = supabase.channel(`pending-badge-gr-${profile.id}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'group_requests', filter: `receiver_id=eq.${profile.id}` }, fetchPendingCount)
       .subscribe()
-    return () => { supabase.removeChannel(ch1); supabase.removeChannel(ch2) }
+
+    // Global presence: broadcast that this user is online
+    const presenceCh = supabase.channel('global-presence')
+    presenceCh.subscribe(async (status) => {
+      if (status === 'SUBSCRIBED') {
+        await presenceCh.track({ user_id: profile.id, online_at: new Date().toISOString() })
+      }
+    })
+
+    return () => { supabase.removeChannel(ch1); supabase.removeChannel(ch2); supabase.removeChannel(presenceCh) }
   }, [profile?.id])
 
   async function fetchPendingCount() {
@@ -208,7 +217,7 @@ export default function MainLayout({ profile, session }) {
               <h1 className={`text-[17px] font-bold text-white leading-tight ${activeTab === 'home' ? 'animate-onyx-glow' : ''}`}>
                 {activeTab === 'feed' ? 'Global Posts' : activeTab === 'home' ? 'Home' : activeTab === 'search' ? 'Search' : activeTab === 'settings' ? 'Settings' : TABS.find(t => t.id === activeTab)?.label || 'ONYX'}
               </h1>
-              <p className="text-[11px] text-slate-400 mt-0.5 font-medium tracking-widest uppercase">ONYX Platform</p>
+              <p className="text-[11px] text-slate-400 mt-0.5 font-medium tracking-widest uppercase">ONYX</p>
             </div>
           </div>
           <motion.button whileTap={{scale:0.9}} className="w-10 h-10 rounded-full border border-white/5 bg-white/5 flex items-center justify-center cursor-pointer hover:bg-white/10 transition-colors" onClick={() => handleTabChange('search')}>
@@ -234,7 +243,7 @@ export default function MainLayout({ profile, session }) {
       </div>
 
       {/* Action Hub & Modals */}
-      <ActionHubFAB onSnap={() => setShowSnap(true)} onPost={() => setShowPost(true)} onNewGroup={() => setShowGroup(true)} />
+      <ActionHubFAB profile={profile} onSnap={() => setShowSnap(true)} onPost={() => setShowPost(true)} onNewGroup={() => setShowGroup(true)} />
 
       <AnimatePresence>
         {showSnap && <SnapCamera currentProfile={profile} onClose={() => setShowSnap(false)} />}

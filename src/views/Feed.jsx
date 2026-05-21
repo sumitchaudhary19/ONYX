@@ -137,7 +137,7 @@ function SharePostModal({ post, currentProfile, onClose }) {
           <button onClick={onClose} className="p-1.5 rounded-lg bg-white/5 text-slate-400"><X className="w-3.5 h-3.5" /></button>
         </div>
         {friends.length === 0 && <p className="text-sm text-slate-500 text-center py-4">No friends yet.</p>}
-        {friends.map((f, i) => {
+        {Array.isArray(friends) && friends.length > 0 && friends.map((f, i) => {
           const name = [f.first_name, f.last_name].filter(Boolean).join(' ')
           return (
             <div key={f.id} className="flex items-center gap-3 p-3 rounded-2xl bg-white/5 border border-white/5">
@@ -295,9 +295,9 @@ export default function Feed({ profile }) {
       setLoading(true)
       const myId = profile?.id
       const { data: rawPosts } = await supabase.from('posts').select('*,profiles:user_id(id,first_name,last_name,avatar_url)').order('created_at', { ascending: false }).limit(40)
-      if (!rawPosts) { setLoading(false); return }
+      if (!rawPosts || !Array.isArray(rawPosts) || rawPosts.length === 0) { setPosts([]); setLoading(false); return }
 
-      const ids = rawPosts.map(p => p.id)
+      const ids = rawPosts.map(p => p?.id).filter(Boolean)
       const [{ data: likes }, { data: commentCounts }] = await Promise.all([
         supabase.from('post_likes').select('post_id,user_id').in('post_id', ids),
         supabase.from('post_comments').select('post_id').in('post_id', ids),
@@ -352,7 +352,7 @@ export default function Feed({ profile }) {
             <p className="text-sm text-slate-500">Be the first to share something!</p>
           </div>
         )}
-        {posts.map(p => <PostCard key={p.id} post={p} currentProfile={profile} />)}
+        {Array.isArray(posts) && posts.length > 0 && posts.map(p => p?.id ? <PostCard key={p.id} post={p} currentProfile={profile} /> : null)}
       </div>
 
       <AnimatePresence>

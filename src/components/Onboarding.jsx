@@ -75,14 +75,48 @@ function TextareaField({ label, id, value, onChange, maxLength }) {
   )
 }
 
+/* ─── Styled Select ─────────────────────────────────────── */
+function SelectField({ label, id, value, onChange, options }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+      <label htmlFor={id} style={{ fontSize: '11px', fontWeight: 600, color: '#94a3b8', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+        {label}
+      </label>
+      <select
+        id={id}
+        value={value}
+        onChange={onChange}
+        style={{
+          width: '100%',
+          padding: '12px 16px',
+          borderRadius: '12px',
+          border: '1px solid rgba(255,255,255,0.12)',
+          background: 'rgba(255,255,255,0.06)',
+          color: value ? '#fff' : '#64748b',
+          fontSize: '14px',
+          outline: 'none',
+          appearance: 'none',
+          transition: 'border-color 0.2s, background 0.2s',
+          cursor: 'pointer'
+        }}
+        onFocus={e => { e.target.style.borderColor = '#3b82f6'; e.target.style.background = 'rgba(59,130,246,0.08)' }}
+        onBlur={e => { e.target.style.borderColor = 'rgba(255,255,255,0.12)'; e.target.style.background = 'rgba(255,255,255,0.06)' }}
+      >
+        <option value="" disabled hidden>Select your year</option>
+        {options.map(opt => <option key={opt.value} value={opt.value} style={{ background: '#0d0d0d', color: '#fff' }}>{opt.label}</option>)}
+      </select>
+    </div>
+  )
+}
+
 /* ─── Onboarding ─────────────────────────────────────── */
 export default function Onboarding({ onComplete }) {
-  const [form, setForm] = useState({ firstName: '', lastName: '', username: '', bio: '' })
+  const [form, setForm] = useState({ firstName: '', lastName: '', username: '', bio: '', btechYear: '' })
   const [submitting, setSubmitting] = useState(false)
 
   const set = (key) => (e) => setForm(prev => ({ ...prev, [key]: e.target.value }))
 
-  const isValid = form.firstName.trim() && form.lastName.trim() && form.username.trim().length >= 3
+  const isValid = form.firstName.trim() && form.lastName.trim() && form.username.trim().length >= 3 && form.btechYear
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -99,6 +133,7 @@ export default function Onboarding({ onComplete }) {
         last_name: form.lastName,
         username: form.username,
         bio: form.bio,
+        btech_year: form.btechYear,
       })
       
       if (error) throw error
@@ -184,6 +219,17 @@ export default function Onboarding({ onComplete }) {
               ⚠ At least 3 characters required
             </p>
           )}
+
+          {/* B.Tech Year */}
+          <SelectField
+            id="btechYear" label="B.Tech Year" value={form.btechYear} onChange={set('btechYear')}
+            options={[
+              { value: '1st Year', label: '1st Year' },
+              { value: '2nd Year', label: '2nd Year' },
+              { value: '3rd Year', label: '3rd Year' },
+              { value: '4th Year', label: '4th Year' },
+            ]}
+          />
 
           {/* Bio */}
           <TextareaField id="bio" label="Short Bio (optional)" value={form.bio} onChange={set('bio')} maxLength={120} />

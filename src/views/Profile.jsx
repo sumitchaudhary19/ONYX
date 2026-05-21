@@ -504,6 +504,7 @@ export default function Profile({profile:initialProfile}){
           <div style={{marginTop:isEditing?'12px':0}}>
             <InfoRow icon={Hash} label="Username" value={`@${profile?.username||'—'}`} iconColor="#60a5fa"/>
             <InfoRow icon={GraduationCap} label="Institute" value="MNIT Jaipur" iconColor="#a78bfa"/>
+            {(profile?.btech_year || profile?.btechYear) && <InfoRow icon={Clock} label="B.Tech Year" value={profile.btech_year || profile.btechYear} iconColor="#f59e0b"/>}
             <InfoRow icon={Mail} label="Auth Method" value={authMeta?.app_metadata?.provider==='google'?'Google OAuth':authMeta?.email??'—'} iconColor="#34d399"/>
             <div style={{borderBottom:'none'}}>
               <InfoRow icon={Shield} label="Email" value={authMeta?.email??'—'} iconColor="#f59e0b"/>

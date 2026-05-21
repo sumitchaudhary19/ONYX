@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ArrowLeft, UserPlus, Check, Clock, MoreVertical, ShieldOff, UserMinus, Share2, X, Play } from 'lucide-react'
+import { ArrowLeft, UserPlus, Check, Clock, MoreVertical, ShieldOff, UserMinus, Share2, X, Play, Aperture } from 'lucide-react'
 import { supabase } from '../supabaseClient'
 import { PostCard } from './Feed'
 
@@ -14,59 +14,101 @@ const GRADIENTS = [
   'linear-gradient(135deg,#a855f7,#7c3aed)',
 ]
 
-/* ── Friend picker for Share Profile ── */
+function StoryViewerModal({ story, currentProfile, onClose }) {
+  useEffect(() => {
+    async function logView() {
+      if (!currentProfile?.id || !story?.id) return
+      const { error } = await supabase.from('story_views').insert({
+        story_id: story.id,
+        viewer_id: currentProfile.id
+      })
+      if (error && error.code !== '23505') {
+        console.error('Error logging view:', error)
+      }
+    }
+    logView()
+  }, [currentProfile?.id, story?.id])
+
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[500] bg-black flex flex-col">
+      <div className="absolute top-0 left-0 right-0 p-4 z-20 flex justify-between items-center bg-gradient-to-b from-black/80 to-transparent">
+        <div className="flex gap-1 flex-1 mr-4">
+          <div className="h-1 bg-white/50 rounded-full flex-1 overflow-hidden">
+            <motion.div initial={{ width: 0 }} animate={{ width: '100%' }} transition={{ duration: 5 }} className="h-full bg-white" />
+          </div>
+        </div>
+        <button onClick={onClose} className="p-2 bg-black/40 rounded-full text-white backdrop-blur-md"><X className="w-5 h-5" /></button>
+      </div>
+      
+      <div className="flex-1 flex items-center justify-center relative overflow-hidden bg-[#0d0d0d]">
+        {story?.media_type === 'video' ? (
+          <video src={story?.media_url} autoPlay controls className="w-full h-full object-contain" />
+        ) : (
+          <img src={story?.media_url} alt="Story" className="w-full h-full object-contain" />
+        )}
+      </div>
+    </motion.div>
+  )
+}
+
 function FriendPickerModal({ title, currentProfile, onSelect, onClose }) {
   const [friends, setFriends] = useState([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     async function load() {
+      if (!currentProfile?.id) return
       const { data: reqs } = await supabase
         .from('friend_requests')
         .select('sender_id, receiver_id')
         .eq('status', 'accepted')
         .or(`sender_id.eq.${currentProfile.id},receiver_id.eq.${currentProfile.id}`)
-      if (!reqs?.length) { setFriends([]); setLoading(false); return }
-      const ids = reqs.map(r => r.sender_id === currentProfile.id ? r.receiver_id : r.sender_id)
+        
+      if (!reqs || reqs.length === 0) { setFriends([]); setLoading(false); return }
+      
+      const ids = reqs.map(r => r?.sender_id === currentProfile.id ? r?.receiver_id : r?.sender_id).filter(Boolean)
+      if (ids.length === 0) { setFriends([]); setLoading(false); return }
+
       const { data: profiles } = await supabase.from('profiles').select('id,first_name,last_name,username,avatar_url').in('id', ids)
       setFriends(profiles || [])
       setLoading(false)
     }
     load()
-  }, [currentProfile.id])
+  }, [currentProfile?.id])
 
   return (
     <motion.div
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
       onClick={onClose}
-      style={{ position: 'fixed', inset: 0, zIndex: 300, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', padding: '0 12px 24px' }}
+      className="fixed inset-0 z-[300] bg-black/75 flex items-end justify-center px-3 pb-6"
     >
       <motion.div
         initial={{ y: 80 }} animate={{ y: 0 }} exit={{ y: 80 }}
         transition={{ type: 'spring', stiffness: 300, damping: 28 }}
         onClick={e => e.stopPropagation()}
-        style={{ width: '100%', maxWidth: '460px', background: 'linear-gradient(180deg,#0d1630,#080e22)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '24px 24px 20px 20px', padding: '20px', maxHeight: '70vh', display: 'flex', flexDirection: 'column' }}
+        className="w-full max-w-[460px] bg-gradient-to-b from-[#0d1630] to-[#080e22] border border-white/10 rounded-t-[24px] rounded-b-[20px] p-5 max-h-[70vh] flex flex-col"
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-          <h3 style={{ fontSize: '15px', fontWeight: 700, color: '#f0f4ff' }}>{title}</h3>
-          <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.07)', border: 'none', borderRadius: '8px', padding: '6px', cursor: 'pointer', color: '#64748b', display: 'flex' }}><X style={{ width: 14, height: 14 }} /></button>
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-[15px] font-bold text-[#f0f4ff]">{title}</h3>
+          <button onClick={onClose} className="bg-white/5 border-none rounded-lg p-1.5 cursor-pointer text-slate-400 flex"><X className="w-3.5 h-3.5" /></button>
         </div>
-        <div style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-          {loading && <p style={{ color: '#475569', fontSize: '13px', textAlign: 'center', padding: '20px' }}>Loading friends…</p>}
-          {!loading && friends.length === 0 && <p style={{ color: '#475569', fontSize: '13px', textAlign: 'center', padding: '20px' }}>No friends yet.</p>}
-          {friends.map((f, i) => {
-            const name = [f.first_name, f.last_name].filter(Boolean).join(' ')
-            const init = name.split(' ').map(s => s[0]?.toUpperCase()).join('') || '?'
+        <div className="overflow-y-auto flex flex-col gap-1.5">
+          {loading && <p className="text-slate-500 text-[13px] text-center p-5">Loading friends…</p>}
+          {!loading && (!friends || friends.length === 0) && <p className="text-slate-500 text-[13px] text-center p-5">No friends yet.</p>}
+          {friends && friends.length > 0 && friends.map((f, i) => {
+            const name = [f?.first_name, f?.last_name].filter(Boolean).join(' ') || 'Unknown'
+            const init = name.split(' ').map(s => s?.[0]?.toUpperCase()).join('') || '?'
             return (
-              <motion.button key={f.id} whileTap={{ scale: 0.97 }} onClick={() => onSelect(f)}
-                style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '11px 14px', borderRadius: '14px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)', cursor: 'pointer', textAlign: 'left' }}>
-                {f.avatar_url
-                  ? <img src={f.avatar_url} alt="" style={{ width: 38, height: 38, borderRadius: '12px', objectFit: 'cover', flexShrink: 0 }} />
-                  : <div style={{ width: 38, height: 38, borderRadius: '12px', flexShrink: 0, background: GRADIENTS[i % GRADIENTS.length], display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px', fontWeight: 700, color: '#fff' }}>{init}</div>
+              <motion.button key={f?.id} whileTap={{ scale: 0.97 }} onClick={() => onSelect(f)}
+                className="flex items-center gap-3 p-2.5 rounded-[14px] bg-white/5 border border-white/5 cursor-pointer text-left">
+                {f?.avatar_url
+                  ? <img src={f.avatar_url} alt="" className="w-9 h-9 rounded-xl object-cover shrink-0" />
+                  : <div className="w-9 h-9 rounded-xl shrink-0 flex items-center justify-center text-[13px] font-bold text-white" style={{ background: GRADIENTS[i % GRADIENTS.length] }}>{init}</div>
                 }
                 <div>
-                  <p style={{ fontSize: '14px', fontWeight: 600, color: '#f1f5f9' }}>{name}</p>
-                  <p style={{ fontSize: '12px', color: '#64748b' }}>@{f.username}</p>
+                  <p className="text-[14px] font-semibold text-slate-100">{name}</p>
+                  <p className="text-xs text-slate-400">@{f?.username || 'user'}</p>
                 </div>
               </motion.button>
             )
@@ -77,8 +119,8 @@ function FriendPickerModal({ title, currentProfile, onSelect, onClose }) {
   )
 }
 
-/* ── Expanded Post Modal ── */
 function ExpandedPostModal({ post, currentProfile, onClose }) {
+  if (!post) return null
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
       onClick={onClose}
@@ -95,12 +137,50 @@ function ExpandedPostModal({ post, currentProfile, onClose }) {
   )
 }
 
+// ── Premium Loading Skeleton ──
+function ProfileSkeleton() {
+  return (
+    <div className="h-full w-full bg-[#0a0a12] flex flex-col overflow-hidden animate-pulse">
+      {/* Header Skeleton */}
+      <div className="shrink-0 flex justify-between items-center px-5 py-4 border-b border-white/5">
+        <div className="w-8 h-8 rounded-xl bg-white/10" />
+        <div className="w-32 h-4 rounded-md bg-white/10" />
+        <div className="w-8 h-8 rounded-xl bg-white/10" />
+      </div>
+
+      <div className="flex-1 p-6 md:p-10">
+        <div className="max-w-4xl mx-auto flex flex-col md:flex-row items-center md:items-start gap-6 md:gap-10 border-b border-white/5 pb-10">
+          <div className="w-24 h-24 md:w-36 md:h-36 rounded-full bg-white/10 shrink-0" />
+          <div className="flex-1 w-full flex flex-col items-center md:items-start gap-4">
+            <div className="w-48 h-6 rounded-md bg-white/10" />
+            <div className="w-32 h-4 rounded-md bg-white/5" />
+            
+            <div className="flex items-center gap-8 md:gap-10 mt-2">
+              <div className="flex flex-col items-center gap-2"><div className="w-8 h-6 rounded bg-white/10" /><div className="w-12 h-3 rounded bg-white/5" /></div>
+              <div className="flex flex-col items-center gap-2"><div className="w-8 h-6 rounded bg-white/10" /><div className="w-12 h-3 rounded bg-white/5" /></div>
+            </div>
+            
+            <div className="w-full md:w-64 h-10 rounded-xl bg-white/10 mt-4" />
+          </div>
+        </div>
+        
+        {/* Grid Skeleton */}
+        <div className="grid grid-cols-3 gap-1 md:gap-2 mt-2">
+          {[1,2,3,4,5,6].map(i => (
+            <div key={i} className="aspect-square bg-white/5 rounded-md md:rounded-lg" />
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function UserProfile({ currentProfile }) {
   const { userId } = useParams()
   const navigate = useNavigate()
 
   const [user, setUser] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const [isLoading, setIsLoading] = useState(true)
   const [requestStatus, setRequestStatus] = useState(null)
   const [menuOpen, setMenuOpen] = useState(false)
   const [showSharePicker, setShowSharePicker] = useState(false)
@@ -108,6 +188,8 @@ export default function UserProfile({ currentProfile }) {
   const [posts, setPosts] = useState([])
   const [friendCount, setFriendCount] = useState(0)
   const [expandedPost, setExpandedPost] = useState(null)
+  const [activeStory, setActiveStory] = useState(null)
+  const [showStoryViewer, setShowStoryViewer] = useState(false)
 
   const menuRef = useRef(null)
 
@@ -116,37 +198,46 @@ export default function UserProfile({ currentProfile }) {
     setTimeout(() => setToast(null), 2800)
   }
 
-  /* ── Close menu on outside click ── */
   useEffect(() => {
     function handler(e) { if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpen(false) }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
   }, [])
 
-  /* ── Fetch target user's profile, posts, and stats ── */
   useEffect(() => {
-    if (!userId) return
+    if (!userId) {
+      setIsLoading(false)
+      return
+    }
     async function load() {
       try {
-        setLoading(true)
+        setIsLoading(true)
+        const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+        
         const [
           { data: userData, error: userError },
           { count: fCount },
-          { data: rawPosts }
+          { data: rawPosts },
+          { data: storyData }
         ] = await Promise.all([
-          supabase.from('profiles').select('*').eq('id', userId).single(),
+          supabase.from('profiles').select('*').eq('id', userId).maybeSingle(),
           supabase.from('friend_requests').select('*', { count: 'exact', head: true })
             .eq('status', 'accepted').or(`sender_id.eq.${userId},receiver_id.eq.${userId}`),
-          supabase.from('posts').select('*,profiles:user_id(id,first_name,last_name,avatar_url)').eq('user_id', userId).order('created_at', { ascending: false })
+          supabase.from('posts').select('*,profiles:user_id(id,first_name,last_name,avatar_url)').eq('user_id', userId).order('created_at', { ascending: false }),
+          supabase.from('stories').select('*').eq('user_id', userId).gt('created_at', twentyFourHoursAgo).order('created_at', { ascending: false }).limit(1).maybeSingle()
         ])
 
-        if (userError || !userData) throw userError
+        if (userError || !userData) {
+          setUser(null)
+          return
+        }
+        
         setUser(userData)
-        setFriendCount(fCount || 0)
+        setFriendCount(fCount ?? 0)
+        setActiveStory(storyData || null)
 
-        // Enrich posts with like & comment counts
-        if (rawPosts && rawPosts.length > 0) {
-          const ids = rawPosts.map(p => p.id)
+        if (rawPosts && Array.isArray(rawPosts) && rawPosts.length > 0) {
+          const ids = rawPosts.map(p => p?.id).filter(Boolean)
           const [{ data: likes }, { data: commentCounts }] = await Promise.all([
             supabase.from('post_likes').select('post_id,user_id').in('post_id', ids),
             supabase.from('post_comments').select('post_id').in('post_id', ids),
@@ -158,9 +249,9 @@ export default function UserProfile({ currentProfile }) {
 
           const enriched = rawPosts.map(p => ({
             ...p,
-            like_count: (likeMap[p.id] || []).length,
-            user_liked: (likeMap[p.id] || []).includes(currentProfile?.id),
-            comment_count: cntMap[p.id] || 0,
+            like_count: (likeMap[p?.id] || []).length,
+            user_liked: currentProfile?.id ? (likeMap[p?.id] || []).includes(currentProfile.id) : false,
+            comment_count: cntMap[p?.id] ?? 0,
           }))
           setPosts(enriched)
         } else {
@@ -168,29 +259,33 @@ export default function UserProfile({ currentProfile }) {
         }
       } catch (err) {
         console.error('Error loading user:', err)
+        setUser(null)
       } finally {
-        setLoading(false)
+        setIsLoading(false)
       }
     }
     load()
   }, [userId, currentProfile?.id])
 
-  /* ── Check friend request status ── */
   useEffect(() => {
     if (!currentProfile?.id || !userId) return
     async function checkStatus() {
-      const { data } = await supabase
-        .from('friend_requests')
-        .select('status')
-        .or(`and(sender_id.eq.${currentProfile.id},receiver_id.eq.${userId}),and(sender_id.eq.${userId},receiver_id.eq.${currentProfile.id})`)
-        .single()
-      if (data) setRequestStatus(data.status)
+      try {
+        const { data } = await supabase
+          .from('friend_requests')
+          .select('status')
+          .or(`and(sender_id.eq.${currentProfile.id},receiver_id.eq.${userId}),and(sender_id.eq.${userId},receiver_id.eq.${currentProfile.id})`)
+          .maybeSingle()
+        if (data) setRequestStatus(data.status)
+      } catch(err) {
+        console.error('Status check error:', err)
+      }
     }
     checkStatus()
   }, [currentProfile?.id, userId])
 
   const sendRequest = async () => {
-    if (requestStatus) return
+    if (requestStatus || !currentProfile?.id || !userId) return
     setRequestStatus('sending')
     try {
       const { error } = await supabase.from('friend_requests').insert({ sender_id: currentProfile.id, receiver_id: userId, status: 'pending' })
@@ -202,9 +297,9 @@ export default function UserProfile({ currentProfile }) {
     }
   }
 
-  /* ── Block user ── */
   const blockUser = async () => {
     setMenuOpen(false)
+    if(!currentProfile?.id || !userId) return
     try {
       const { error } = await supabase.from('blocks').insert({ blocker_id: currentProfile.id, blocked_id: userId })
       if (error) throw error
@@ -215,9 +310,9 @@ export default function UserProfile({ currentProfile }) {
     }
   }
 
-  /* ── Remove friend ── */
   const removeFriend = async () => {
     setMenuOpen(false)
+    if(!currentProfile?.id || !userId) return
     try {
       const { error } = await supabase.from('friend_requests')
         .delete()
@@ -230,9 +325,9 @@ export default function UserProfile({ currentProfile }) {
     }
   }
 
-  /* ── Share profile to a friend ── */
   const shareProfileTo = async (friend) => {
     setShowSharePicker(false)
+    if(!currentProfile?.id || !friend?.id || !userId) return
     try {
       const { error } = await supabase.from('messages').insert({
         sender_id: currentProfile.id,
@@ -242,59 +337,54 @@ export default function UserProfile({ currentProfile }) {
         shared_profile_id: userId,
       })
       if (error) throw error
-      showToast(`Profile shared with ${friend.first_name}!`)
+      showToast(`Profile shared with ${friend?.first_name || 'friend'}!`)
     } catch (err) {
       showToast('Failed to share profile.', 'error')
     }
   }
 
-  const initials = user
-    ? [user.first_name, user.last_name].filter(Boolean).map(s => s[0]?.toUpperCase()).join('') || '?'
-    : '?'
-
-  if (loading) {
-    return (
-      <div style={{ minHeight: '100vh', background: '#0d0d0d', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <svg className="animate-spin" style={{ width: 36, height: 36, color: '#3b82f6' }} fill="none" viewBox="0 0 24 24">
-          <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" style={{ opacity: 0.25 }} />
-          <path fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" style={{ opacity: 0.75 }} />
-        </svg>
-      </div>
-    )
+  if (isLoading) {
+    return <ProfileSkeleton />
   }
 
   if (!user) {
     return (
-      <div style={{ minHeight: '100vh', background: '#0d0d0d', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '12px' }}>
-        <p style={{ color: '#64748b', fontSize: '16px' }}>User not found.</p>
-        <button onClick={() => navigate(-1)} style={{ color: '#60a5fa', background: 'none', border: 'none', cursor: 'pointer', fontSize: '14px' }}>Go Back</button>
+      <div className="h-full w-full bg-[#0a0a12] flex flex-col items-center justify-center gap-4">
+        <div className="w-20 h-20 rounded-full bg-white/5 border border-white/10 flex items-center justify-center">
+          <UserMinus className="w-10 h-10 text-slate-500" />
+        </div>
+        <div className="text-center">
+          <h2 className="text-xl font-bold text-slate-200 mb-1">User Not Found</h2>
+          <p className="text-slate-500 text-sm max-w-[250px] mx-auto">This account may have been deleted or the link is invalid.</p>
+        </div>
+        <button onClick={() => navigate(-1)} className="mt-4 px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-full transition-colors shadow-lg shadow-blue-500/20">
+          Go Back
+        </button>
       </div>
     )
   }
 
-  const userName = [user.first_name, user.last_name].filter(Boolean).join(' ')
+  const userName = [user?.first_name, user?.last_name].filter(Boolean).join(' ') || 'Unknown'
+  const initials = [user?.first_name, user?.last_name].filter(Boolean).map(s => s?.[0]?.toUpperCase()).join('') || '?'
 
   return (
-    <div style={{ height: '100vh', width: '100%', background: '#0a0a12', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-
-      {/* Toast */}
+    <div className="h-[100dvh] w-full bg-[#0a0a12] flex flex-col overflow-hidden relative">
       <AnimatePresence>
         {toast && (
           <motion.div
             initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}
-            style={{ position: 'fixed', top: '20px', left: '50%', transform: 'translateX(-50%)', zIndex: 500, padding: '10px 20px', borderRadius: '12px', background: toast.type === 'error' ? 'rgba(239,68,68,0.15)' : 'rgba(16,185,129,0.15)', border: `1px solid ${toast.type === 'error' ? 'rgba(239,68,68,0.4)' : 'rgba(16,185,129,0.4)'}`, color: toast.type === 'error' ? '#f87171' : '#34d399', fontSize: '13px', fontWeight: 600, backdropFilter: 'blur(16px)' }}
+            className={`fixed top-5 left-1/2 -translate-x-1/2 z-[500] px-5 py-2.5 rounded-xl text-[13px] font-bold backdrop-blur-xl border ${toast.type === 'error' ? 'bg-red-500/15 border-red-500/30 text-red-400' : 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400'}`}
           >
             {toast.msg}
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Header row with back + hamburger */}
       <div className="shrink-0 flex justify-between items-center px-5 py-4 border-b border-white/5 bg-[#0a0a12]/80 backdrop-blur-xl z-10">
         <motion.button onClick={() => navigate(-1)} whileTap={{ scale: 0.92 }} className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-xl px-3.5 py-2 text-slate-300 font-medium text-sm hover:bg-white/10 transition-colors">
           <ArrowLeft className="w-4 h-4" /> Back
         </motion.button>
-        <div className="font-bold text-white tracking-wide">@{user.username}</div>
+        <div className="font-bold text-white tracking-wide truncate max-w-[150px]">@{user?.username || 'user'}</div>
         <div ref={menuRef} className="relative">
           <motion.button onClick={() => setMenuOpen(v => !v)} whileTap={{ scale: 0.88 }} className="w-9 h-9 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-slate-400 hover:text-white transition-colors">
             <MoreVertical className="w-4 h-4" />
@@ -318,41 +408,49 @@ export default function UserProfile({ currentProfile }) {
         </div>
       </div>
 
-      {/* Scrollable Content */}
       <div className="flex-1 overflow-y-auto pb-20 relative">
         <div className="max-w-4xl mx-auto">
-          {/* Profile Header (Instagram style) */}
           <div className="flex flex-col md:flex-row items-center md:items-start gap-6 md:gap-10 p-6 md:p-10 border-b border-white/5">
-            {/* Avatar */}
-            <div className="shrink-0">
-              {user.avatar_url ? (
-                <img src={user.avatar_url} alt="" className="w-24 h-24 md:w-36 md:h-36 rounded-full object-cover border-[3px] border-[#0a0a12] shadow-[0_0_0_3px_rgba(37,99,235,0.4),0_10px_30px_rgba(0,0,0,0.5)]" />
-              ) : (
-                <div className="w-24 h-24 md:w-36 md:h-36 rounded-full flex items-center justify-center text-4xl md:text-5xl font-bold text-white border-[3px] border-[#0a0a12] shadow-[0_0_0_3px_rgba(37,99,235,0.4)] bg-gradient-to-br from-blue-500 to-purple-600">
-                  {initials}
-                </div>
-              )}
+            <div className="shrink-0 relative">
+              <motion.div
+                whileTap={activeStory ? { scale: 0.95 } : {}}
+                onClick={activeStory ? () => setShowStoryViewer(true) : undefined}
+                className={`w-24 h-24 md:w-36 md:h-36 rounded-full relative ${activeStory ? 'p-[3px] bg-gradient-to-tr from-pink-500 via-purple-500 to-indigo-500 cursor-pointer shadow-[0_0_20px_rgba(236,72,153,0.5)]' : 'border-[3px] border-[#0a0a12]'}`}
+              >
+                {user?.avatar_url ? (
+                  <img src={user.avatar_url} alt="" className="w-full h-full rounded-full object-cover border-[3px] border-[#0a0a12] shadow-inner" />
+                ) : (
+                  <div className="w-full h-full rounded-full flex items-center justify-center text-4xl md:text-5xl font-bold text-white border-[3px] border-[#0a0a12] bg-gradient-to-br from-blue-500 to-purple-600">
+                    {initials}
+                  </div>
+                )}
+                {activeStory && (
+                  <div className="absolute inset-0 bg-black/10 rounded-full flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
+                    <Play className="w-8 h-8 text-white drop-shadow-md" fill="white" />
+                  </div>
+                )}
+              </motion.div>
             </div>
 
             <div className="flex-1 w-full flex flex-col items-center md:items-start gap-4">
-              <h1 className="text-2xl md:text-3xl font-bold text-white text-center md:text-left">{userName}</h1>
+              <div className="flex flex-col items-center md:items-start gap-1">
+                <h1 className="text-2xl md:text-3xl font-bold text-white text-center md:text-left">{userName}</h1>
+                <p className="text-sm text-slate-400 font-medium">MNIT Jaipur {user?.btech_year ? `• ${user.btech_year}` : ''}</p>
+              </div>
               
-              {/* Stats */}
               <div className="flex items-center gap-8 md:gap-10 w-full justify-center md:justify-start">
                 <div className="flex flex-col items-center">
-                  <span className="text-xl md:text-2xl font-bold text-white">{posts.length}</span>
+                  <span className="text-xl md:text-2xl font-bold text-white">{posts?.length || 0}</span>
                   <span className="text-xs text-slate-400 font-medium">Posts</span>
                 </div>
                 <div className="flex flex-col items-center">
-                  <span className="text-xl md:text-2xl font-bold text-white">{friendCount}</span>
+                  <span className="text-xl md:text-2xl font-bold text-white">{friendCount || 0}</span>
                   <span className="text-xs text-slate-400 font-medium">Friends</span>
                 </div>
               </div>
 
-              {/* Bio */}
-              {user.bio && <p className="text-[14px] text-slate-300 text-center md:text-left max-w-sm whitespace-pre-wrap leading-relaxed">{user.bio}</p>}
+              {user?.bio && <p className="text-[14px] text-slate-300 text-center md:text-left max-w-sm whitespace-pre-wrap leading-relaxed">{user.bio}</p>}
 
-              {/* Add Friend Button */}
               <motion.button
                 id="btn-add-friend"
                 onClick={sendRequest}
@@ -372,38 +470,40 @@ export default function UserProfile({ currentProfile }) {
             </div>
           </div>
 
-          {/* Posts Grid */}
           <div className="p-1 md:p-2">
-            {posts.length === 0 ? (
+            {!posts || !Array.isArray(posts) || posts.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-20 gap-4">
-                <div className="w-16 h-16 rounded-full border-2 border-slate-700 flex items-center justify-center"><Camera className="w-8 h-8 text-slate-600" /></div>
+                <div className="w-16 h-16 rounded-full border-2 border-slate-700 flex items-center justify-center"><Aperture className="w-8 h-8 text-slate-600" /></div>
                 <p className="text-lg font-bold text-slate-300">No Posts Yet</p>
               </div>
             ) : (
               <div className="grid grid-cols-3 gap-1 md:gap-2">
-                {posts.map(post => (
-                  <motion.div key={post.id} whileHover={{ opacity: 0.85 }} onClick={() => setExpandedPost(post)}
-                    className="aspect-square relative cursor-pointer bg-slate-900 overflow-hidden rounded-md md:rounded-lg">
-                    {post.media_type === 'video' ? (
-                      <>
-                        <video src={post.media_url} className="w-full h-full object-cover" />
-                        <div className="absolute top-2 right-2 bg-black/50 p-1 rounded-full"><Play className="w-3 h-3 text-white" fill="white" /></div>
-                      </>
-                    ) : (
-                      <img src={post.media_url} alt="" className="w-full h-full object-cover" />
-                    )}
-                  </motion.div>
-                ))}
+                {posts.map(post => {
+                  if (!post?.id) return null
+                  return (
+                    <motion.div key={post.id} whileHover={{ opacity: 0.85 }} onClick={() => setExpandedPost(post)}
+                      className="aspect-square relative cursor-pointer bg-slate-900 overflow-hidden rounded-md md:rounded-lg">
+                      {post?.media_type === 'video' ? (
+                        <>
+                          <video src={post?.media_url} className="w-full h-full object-cover" />
+                          <div className="absolute top-2 right-2 bg-black/50 p-1 rounded-full"><Play className="w-3 h-3 text-white" fill="white" /></div>
+                        </>
+                      ) : (
+                        <img src={post?.media_url} alt="" className="w-full h-full object-cover" />
+                      )}
+                    </motion.div>
+                  )
+                })}
               </div>
             )}
           </div>
         </div>
       </div>
 
-      {/* Modals */}
       <AnimatePresence>
-        {showSharePicker && <FriendPickerModal title={`Share ${user.first_name}'s profile`} currentProfile={currentProfile} onSelect={shareProfileTo} onClose={() => setShowSharePicker(false)} />}
+        {showSharePicker && <FriendPickerModal title={`Share ${user?.first_name || 'Profile'}`} currentProfile={currentProfile} onSelect={shareProfileTo} onClose={() => setShowSharePicker(false)} />}
         {expandedPost && <ExpandedPostModal post={expandedPost} currentProfile={currentProfile} onClose={() => setExpandedPost(null)} />}
+        {showStoryViewer && activeStory && <StoryViewerModal story={activeStory} currentProfile={currentProfile} onClose={() => setShowStoryViewer(false)} />}
       </AnimatePresence>
     </div>
   )

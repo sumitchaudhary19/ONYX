@@ -1,4 +1,4 @@
-import{useEffect,useState,useRef}from'react'
+import{useEffect,useState,useRef,useCallback}from'react'
 import{motion,AnimatePresence}from'framer-motion'
 import{MessageCircle,Users,Eye,EyeOff,Trash2,X}from'lucide-react'
 import{useNavigate}from'react-router-dom'
@@ -7,13 +7,31 @@ import GroupsList from './GroupsList'
 
 const GRADIENTS=['linear-gradient(135deg,#3b82f6,#06b6d4)','linear-gradient(135deg,#8b5cf6,#ec4899)','linear-gradient(135deg,#10b981,#14b8a6)','linear-gradient(135deg,#f59e0b,#f97316)','linear-gradient(135deg,#ef4444,#f43f5e)','linear-gradient(135deg,#a855f7,#7c3aed)']
 
-function FriendAvatar({friend,index,size=48}){
-  const initials=[friend.first_name,friend.last_name].filter(Boolean).map(s=>s[0]?.toUpperCase()).join('')||'?'
-  if(friend.avatar_url)return <img src={friend.avatar_url} alt={friend.username} style={{width:size,height:size,borderRadius:'14px',objectFit:'cover',flexShrink:0}}/>
-  return <div style={{width:size,height:size,borderRadius:'14px',flexShrink:0,background:GRADIENTS[index%GRADIENTS.length],display:'flex',alignItems:'center',justifyContent:'center',fontSize:'15px',fontWeight:700,color:'#fff',boxShadow:'0 4px 12px rgba(0,0,0,0.3)'}}>{initials}</div>
+/* ── Unread badge label logic ── */
+function unreadLabel(n){
+  if(n<=0)return null
+  if(n===1)return'1 new message'
+  if(n<=3)return`${n} new messages`
+  return'4+ new messages'
 }
 
-/* Chat capsule long-press menu */
+/* ── Avatar with online dot ── */
+function FriendAvatar({friend,index,size=48,isOnline=false}){
+  const initials=[friend.first_name,friend.last_name].filter(Boolean).map(s=>s[0]?.toUpperCase()).join('')||'?'
+  return(
+    <div style={{position:'relative',flexShrink:0}}>
+      {friend.avatar_url
+        ?<img src={friend.avatar_url} alt={friend.username} style={{width:size,height:size,borderRadius:'14px',objectFit:'cover'}}/>
+        :<div style={{width:size,height:size,borderRadius:'14px',background:GRADIENTS[index%GRADIENTS.length],display:'flex',alignItems:'center',justifyContent:'center',fontSize:'15px',fontWeight:700,color:'#fff',boxShadow:'0 4px 12px rgba(0,0,0,0.3)'}}>{initials}</div>
+      }
+      {isOnline&&(
+        <div style={{position:'absolute',bottom:2,right:2,width:11,height:11,borderRadius:'50%',background:'#22c55e',border:'2px solid #060b18',boxShadow:'0 0 8px rgba(34,197,94,0.7)'}}/>
+      )}
+    </div>
+  )
+}
+
+/* ── Chat context menu ── */
 function ChatMenu({label,options,onClose}){
   return(
     <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}}
@@ -35,7 +53,7 @@ function ChatMenu({label,options,onClose}){
   )
 }
 
-/* Hidden Chats List */
+/* ── Hidden Chats View ── */
 function HiddenChatsView({profile,onClose}){
   const[hidden,setHidden]=useState([])
   const[loading,setLoading]=useState(true)
@@ -43,9 +61,7 @@ function HiddenChatsView({profile,onClose}){
   const navigate=useNavigate()
   const timerRef=useRef(null)
 
-  useEffect(()=>{
-    fetchHidden()
-  },[profile.id])
+  useEffect(()=>{fetchHidden()},[profile.id])
 
   async function fetchHidden(){
     setLoading(true)
@@ -102,7 +118,7 @@ function HiddenChatsView({profile,onClose}){
                 <p style={{fontSize:'15px',fontWeight:600,color:'#f1f5f9',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{name}</p>
                 <p style={{fontSize:'12px',color:'#64748b',marginTop:'2px'}}>@{f.username||'—'}</p>
               </div>
-              <div style={{display:'flex',alignItems:'center',gap:'6px',padding:'5px 10px',borderRadius:'10px',background:'rgba(124,58,237,0.15)',border:'1px solid rgba(124,58,237,0.25)'}}>
+              <div style={{display:'flex',alignItems:'center',gap:'4px',padding:'5px 10px',borderRadius:'10px',background:'rgba(124,58,237,0.15)',border:'1px solid rgba(124,58,237,0.25)'}}>
                 <EyeOff style={{width:12,height:12,color:'#a78bfa'}}/>
                 <span style={{fontSize:'11px',color:'#a78bfa',fontWeight:600}}>Hidden</span>
               </div>
@@ -134,19 +150,115 @@ export default function Chats({profile}){
   const[hiddenIds,setHiddenIds]=useState(new Set())
   const[longPressed,setLongPressed]=useState(null)
   const[showHidden,setShowHidden]=useState(false)
+  const[onlineUsers,setOnlineUsers]=useState(new Set())
+  const[unreadCounts,setUnreadCounts]=useState({})
+  const[lastMessages,setLastMessages]=useState({})
+  const[typingFriends,setTypingFriends]=useState(new Set())
   const navigate=useNavigate()
   const timerRef=useRef(null)
+  const presenceChRef=useRef(null)
+  const typingTimersRef=useRef({})
 
   useEffect(()=>{
     if(!profile?.id)return
     fetchFriends()
     fetchHiddenIds()
+    setupGlobalPresence()
     const ch=supabase.channel(`friends-list-${profile.id}`)
       .on('postgres_changes',{event:'UPDATE',schema:'public',table:'friend_requests'},
         (payload)=>{ if(payload.new?.status==='accepted')fetchFriends() })
       .subscribe()
-    return()=>supabase.removeChannel(ch)
+    // Live unread counter: listen for new messages TO me
+    const unreadCh=supabase.channel(`unread-watcher-${profile.id}`)
+      .on('postgres_changes',{event:'INSERT',schema:'public',table:'messages',filter:`receiver_id=eq.${profile.id}`},
+        (p)=>{ if(!p.new.read_at){ setUnreadCounts(prev=>({...prev,[p.new.sender_id]:(prev[p.new.sender_id]||0)+1})); setLastMessages(prev=>({...prev,[p.new.sender_id]:p.new})) } })
+      .subscribe()
+    return()=>{ supabase.removeChannel(ch); supabase.removeChannel(unreadCh) }
   },[profile?.id])
+
+  // When friends load, fetch unread counts + last messages
+  useEffect(()=>{
+    if(!friends.length||!profile?.id)return
+    fetchUnreadAndLastMessages()
+    setupTypingListeners()
+    return()=>cleanupTypingListeners()
+  },[friends,profile?.id])
+
+  function setupGlobalPresence(){
+    const ch=supabase.channel('global-presence')
+    ch.on('presence',{event:'sync'},()=>{
+      const state=ch.presenceState()
+      const ids=new Set(Object.values(state).flatMap(arr=>arr.map(u=>u.user_id)))
+      setOnlineUsers(ids)
+    }).subscribe()
+    presenceChRef.current=ch
+  }
+
+  async function fetchUnreadAndLastMessages(){
+    try{
+      const friendIds=friends.map(f=>f.id)
+      // Unread: messages sent TO me, from each friend, with read_at null
+      const{data:unread}=await supabase.from('messages')
+        .select('sender_id,id')
+        .eq('receiver_id',profile.id)
+        .is('read_at',null)
+        .in('sender_id',friendIds)
+      const counts={}
+      ;(unread||[]).forEach(m=>{ counts[m.sender_id]=(counts[m.sender_id]||0)+1 })
+      setUnreadCounts(counts)
+
+      // Last message per friend (most recent message in either direction)
+      const{data:msgs}=await supabase.from('messages')
+        .select('id,sender_id,receiver_id,content,image_url,audio_url,video_url,created_at')
+        .or(friendIds.map(id=>`and(sender_id.eq.${profile.id},receiver_id.eq.${id}),and(sender_id.eq.${id},receiver_id.eq.${profile.id})`).join(','))
+        .order('created_at',{ascending:false})
+      // Take the most recent per friend
+      const lastMap={}
+      ;(msgs||[]).forEach(m=>{
+        const fid=m.sender_id===profile.id?m.receiver_id:m.sender_id
+        if(!lastMap[fid])lastMap[fid]=m
+      })
+      setLastMessages(lastMap)
+    }catch(err){console.error('[Chats] fetchUnread:',err)}
+  }
+
+  function setupTypingListeners(){
+    friends.forEach(f=>{
+      const key=[profile.id,f.id].sort().join('-')
+      const ch=supabase.channel(`presence-${key}`)
+        .on('broadcast',{event:'typing'},(payload)=>{
+          const{userId,typing}=payload.payload||{}
+          if(userId===f.id){
+            if(typing){
+              setTypingFriends(prev=>new Set([...prev,f.id]))
+              clearTimeout(typingTimersRef.current[f.id])
+              typingTimersRef.current[f.id]=setTimeout(()=>setTypingFriends(prev=>{ const n=new Set(prev); n.delete(f.id); return n }),3500)
+            }else{
+              setTypingFriends(prev=>{ const n=new Set(prev); n.delete(f.id); return n })
+            }
+          }
+        }).subscribe()
+      typingTimersRef.current[`ch_${f.id}`]=ch
+    })
+  }
+
+  function cleanupTypingListeners(){
+    friends.forEach(f=>{
+      const ch=typingTimersRef.current[`ch_${f.id}`]
+      if(ch)supabase.removeChannel(ch)
+    })
+  }
+
+  function getLastMsgPreview(msg,myId){
+    if(!msg)return null
+    const isMe=msg.sender_id===myId
+    const prefix=isMe?'You: ':''
+    if(msg.audio_url)return `${prefix}🎤 Voice message`
+    if(msg.video_url)return `${prefix}🎥 Video`
+    if(msg.image_url&&!msg.content)return `${prefix}📷 Photo`
+    if(msg.content)return `${prefix}${msg.content}`
+    return null
+  }
 
   async function fetchHiddenIds(){
     const{data}=await supabase.from('hidden_chats').select('friend_id').eq('user_id',profile.id).not('friend_id','is',null)
@@ -197,19 +309,19 @@ export default function Chats({profile}){
 
         {/* Segmented Control */}
         <div style={{display:'flex',background:'rgba(255,255,255,0.05)',borderRadius:'12px',padding:'4px'}}>
-          <button onClick={()=>setViewMode('dms')} style={{flex:1,padding:'8px',borderRadius:'8px',border:'none',background:viewMode==='dms'?'rgba(255,255,255,0.1)':'transparent',color:viewMode==='dms'?'#fff':'#94a3b8',fontSize:'13px',fontWeight:600,cursor:'pointer',transition:'all 0.2s'}}>Direct Messages</button>
-          <button onClick={()=>setViewMode('groups')} style={{flex:1,padding:'8px',borderRadius:'8px',border:'none',background:viewMode==='groups'?'rgba(255,255,255,0.1)':'transparent',color:viewMode==='groups'?'#fff':'#94a3b8',fontSize:'13px',fontWeight:600,cursor:'pointer',transition:'all 0.2s'}}>Groups</button>
+          <button onClick={()=>setViewMode('dms')} style={{flex:1,padding:'8px',borderRadius:'8px',border:'none',background:viewMode==='dms'?'rgba(255,255,255,0.12)':'transparent',color:viewMode==='dms'?'#fff':'#94a3b8',fontSize:'13px',fontWeight:600,cursor:'pointer',transition:'all 0.2s'}}>Direct Messages</button>
+          <button onClick={()=>setViewMode('groups')} style={{flex:1,padding:'8px',borderRadius:'8px',border:'none',background:viewMode==='groups'?'rgba(255,255,255,0.12)':'transparent',color:viewMode==='groups'?'#fff':'#94a3b8',fontSize:'13px',fontWeight:600,cursor:'pointer',transition:'all 0.2s'}}>Groups</button>
         </div>
       </div>
 
-      <div style={{flex:1,overflowY:'auto',padding:'0 10px 16px', position: 'relative'}}>
-        {viewMode === 'groups' ? (
-          <GroupsList profile={profile} />
-        ) : (
+      <div style={{flex:1,overflowY:'auto',padding:'0 10px 16px',position:'relative'}}>
+        {viewMode==='groups'?(
+          <GroupsList profile={profile}/>
+        ):(
           <>
             {loading&&(
               <div style={{display:'flex',flexDirection:'column',gap:'6px',padding:'4px'}}>
-                {[1,2,3].map(i=><div key={i} style={{height:'74px',borderRadius:'18px',background:'rgba(255,255,255,0.04)',animation:'pulse 1.5s ease-in-out infinite'}}/>)}
+                {[1,2,3].map(i=><div key={i} style={{height:'80px',borderRadius:'18px',background:'rgba(255,255,255,0.04)',animation:'pulse 1.5s ease-in-out infinite'}}/>)}
               </div>
             )}
             {!loading&&visibleFriends.length===0&&(
@@ -227,6 +339,13 @@ export default function Chats({profile}){
             <AnimatePresence>
               {!loading&&visibleFriends.map((friend,i)=>{
                 const fullName=[friend.first_name,friend.last_name].filter(Boolean).join(' ')||'Unknown'
+                const isOnline=onlineUsers.has(friend.id)
+                const unread=unreadCounts[friend.id]||0
+                const badge=unreadLabel(unread)
+                const isTyping=typingFriends.has(friend.id)
+                const lastMsg=lastMessages[friend.id]
+                const preview=getLastMsgPreview(lastMsg,profile.id)
+
                 return(
                   <motion.div key={friend.id} layout
                     initial={{opacity:0,y:18,scale:0.96}} animate={{opacity:1,y:0,scale:1}}
@@ -234,19 +353,42 @@ export default function Chats({profile}){
                     transition={{delay:Math.min(i*0.06,0.35),duration:0.35,ease:[0.16,1,0.3,1]}}
                     whileHover={{y:-2,backgroundColor:'rgba(255,255,255,0.058)',boxShadow:'0 8px 24px rgba(0,0,0,0.25)'}}
                     whileTap={{scale:0.98}}
-                    onClick={()=>navigate(`/chat/room/${friend.id}`)}
+                    onClick={()=>{ setUnreadCounts(prev=>({...prev,[friend.id]:0})); navigate(`/chat/room/${friend.id}`) }}
                     onTouchStart={()=>startPress(friend)} onTouchEnd={endPress} onTouchMove={endPress}
                     onMouseDown={()=>startPress(friend)} onMouseUp={endPress} onMouseLeave={endPress}
-                    style={{display:'flex',alignItems:'center',gap:'14px',padding:'13px 14px',marginBottom:'5px',borderRadius:'20px',border:'1px solid rgba(255,255,255,0.07)',background:'rgba(255,255,255,0.03)',cursor:'pointer',transition:'background 0.2s,box-shadow 0.2s'}}>
-                    <FriendAvatar friend={friend} index={i} size={48}/>
+                    style={{display:'flex',alignItems:'center',gap:'14px',padding:'13px 14px',marginBottom:'5px',borderRadius:'20px',border:`1px solid ${unread>0?'rgba(59,130,246,0.25)':'rgba(255,255,255,0.07)'}`,background:unread>0?'rgba(59,130,246,0.05)':'rgba(255,255,255,0.03)',cursor:'pointer',transition:'background 0.2s,box-shadow 0.2s'}}>
+                    <FriendAvatar friend={friend} index={i} size={48} isOnline={isOnline}/>
                     <div style={{flex:1,minWidth:0}}>
-                      <p style={{fontSize:'15px',fontWeight:600,color:'#f1f5f9',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{fullName}</p>
-                      <p style={{fontSize:'12px',color:'#64748b',marginTop:'2px'}}>@{friend.username||'—'}</p>
-                      {friend.bio&&<p style={{fontSize:'11px',color:'#475569',marginTop:'3px',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{friend.bio}</p>}
+                      <p style={{fontSize:'15px',fontWeight:unread>0?700:600,color:'#f1f5f9',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{fullName}</p>
+                      <AnimatePresence mode="wait">
+                        {isTyping?(
+                          <motion.p key="typing" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}}
+                            style={{fontSize:'12px',color:'#3b82f6',marginTop:'2px',fontWeight:600}}>
+                            ✦ Typing…
+                          </motion.p>
+                        ):preview?(
+                          <motion.p key="preview" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}}
+                            style={{fontSize:'12px',color:'#64748b',marginTop:'2px',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',maxWidth:'180px'}}>
+                            {preview}
+                          </motion.p>
+                        ):(
+                          <motion.p key="handle" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}}
+                            style={{fontSize:'12px',color:'#64748b',marginTop:'2px'}}>
+                            @{friend.username||'—'}
+                          </motion.p>
+                        )}
+                      </AnimatePresence>
                     </div>
-                    <motion.div whileHover={{scale:1.1}} style={{flexShrink:0,width:36,height:36,borderRadius:'11px',background:'rgba(37,99,235,0.15)',display:'flex',alignItems:'center',justifyContent:'center'}}>
-                      <MessageCircle style={{width:16,height:16,color:'#60a5fa'}}/>
-                    </motion.div>
+                    {badge?(
+                      <motion.div initial={{scale:0.5,opacity:0}} animate={{scale:1,opacity:1}}
+                        style={{flexShrink:0,padding:'5px 10px',borderRadius:'999px',background:'linear-gradient(135deg,#2563eb,#1d4ed8)',boxShadow:'0 0 14px rgba(37,99,235,0.55)',fontSize:'11px',fontWeight:700,color:'#fff',whiteSpace:'nowrap',textAlign:'center'}}>
+                        {badge}
+                      </motion.div>
+                    ):(
+                      <motion.div whileHover={{scale:1.1}} style={{flexShrink:0,width:36,height:36,borderRadius:'11px',background:'rgba(37,99,235,0.15)',display:'flex',alignItems:'center',justifyContent:'center'}}>
+                        <MessageCircle style={{width:16,height:16,color:'#60a5fa'}}/>
+                      </motion.div>
+                    )}
                   </motion.div>
                 )
               })}

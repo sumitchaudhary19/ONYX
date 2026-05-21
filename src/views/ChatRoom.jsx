@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ArrowLeft, Check, CheckCheck, X, Reply, Forward, Edit3, Trash2, ExternalLink, Pin, Shield } from 'lucide-react'
+import { ArrowLeft, Check, CheckCheck, X, Reply, Forward, Edit3, Trash2, Pin, Shield, Lock } from 'lucide-react'
 import { supabase } from '../supabaseClient'
 import TypingBar from '../components/TypingBar'
 
@@ -65,7 +65,7 @@ function MsgMenu({ msg, isMine, onReply, onForward, onEdit, onDelete, onPin, onC
         {[
           ...(!isMine ? [
             { icon: Reply, label: 'Reply this text', color: '#60a5fa', action: onReply },
-            { icon: Pin, label: msg.is_pinned ? 'Unpin this text' : 'Pin this text', color: '#f59e0b', action: onPin },
+            { icon: Pin, label: msg?.is_pinned ? 'Unpin this text' : 'Pin this text', color: '#f59e0b', action: onPin },
           ] : []),
           { icon: Forward, label: 'Forward', color: '#a78bfa', action: onForward },
           ...(isMine ? [
@@ -95,22 +95,21 @@ function Bubble({ msg, isMine, myId, onLongPress, replyMsg, navigate }) {
       onTouchStart={startPress} onTouchEnd={endPress} onTouchMove={endPress}
       onMouseDown={startPress} onMouseUp={endPress} onMouseLeave={endPress}>
       
-      {/* Reply Reference Bubble */}
       {replyMsg && (
         <div className={`mb-1 px-3 py-1.5 rounded-[14px] text-xs max-w-[70vw] truncate border ${isMine ? 'bg-blue-600/20 border-blue-500/30 text-blue-200' : 'bg-white/5 border-white/10 text-slate-300'}`}>
           <div className="font-semibold mb-0.5 flex items-center gap-1 opacity-70">
             <Reply className="w-3 h-3" /> Replying to
           </div>
-          <span className="opacity-80">{replyMsg.content || 'Voice message'}</span>
+          <span className="opacity-80">{replyMsg?.content || 'Voice message'}</span>
         </div>
       )}
 
-      {msg.audio_url
+      {msg?.audio_url
         ? <VoicePlayer url={msg.audio_url} isMine={isMine} />
         : (<>
-          {msg.image_url && <img src={msg.image_url} alt="shared" className={`max-w-[220px] shadow-lg ${isMine ? 'rounded-[18px_18px_4px_18px]' : 'rounded-[18px_18px_18px_4px]'} ${msg.content ? 'mb-1.5' : ''}`} />}
-          {msg.video_url && <video src={msg.video_url} controls className={`max-w-[220px] shadow-lg bg-black ${isMine ? 'rounded-[18px_18px_4px_18px]' : 'rounded-[18px_18px_18px_4px]'} ${msg.content ? 'mb-1.5' : ''}`} />}
-          {msg.content && (
+          {msg?.image_url && <img src={msg.image_url} alt="shared" className={`max-w-[220px] shadow-lg ${isMine ? 'rounded-[18px_18px_4px_18px]' : 'rounded-[18px_18px_18px_4px]'} ${msg.content ? 'mb-1.5' : ''}`} />}
+          {msg?.video_url && <video src={msg.video_url} controls className={`max-w-[220px] shadow-lg bg-black ${isMine ? 'rounded-[18px_18px_4px_18px]' : 'rounded-[18px_18px_18px_4px]'} ${msg.content ? 'mb-1.5' : ''}`} />}
+          {msg?.content && (
             <div className={`max-w-[75vw] md:max-w-md px-4 py-2.5 text-[15px] leading-relaxed break-words ${isMine ? 'rounded-[20px_20px_4px_20px] bg-gradient-to-br from-blue-600 to-blue-700 text-white shadow-md' : 'rounded-[20px_20px_20px_4px] bg-white/10 border border-white/10 text-slate-100'}`}>
               {msg.content}
             </div>
@@ -118,8 +117,8 @@ function Bubble({ msg, isMine, myId, onLongPress, replyMsg, navigate }) {
         </>)
       }
       <div className="flex items-center gap-1 mt-1 px-1">
-        {msg.is_pinned && <Pin className="w-[10px] h-[10px] text-amber-500" />}
-        <span className="text-[10px] text-slate-500">{fmtTime(msg.created_at)}</span>
+        {msg?.is_pinned && <Pin className="w-[10px] h-[10px] text-amber-500" />}
+        <span className="text-[10px] text-slate-500">{fmtTime(msg?.created_at)}</span>
         {isMine && <ReceiptIcon msg={msg} myId={myId} />}
       </div>
     </motion.div>
@@ -143,13 +142,13 @@ function FriendPicker({ title, currentProfile, onSelect, onClose }) {
   useEffect(() => {
     async function load() {
       const { data: reqs } = await supabase.from('friend_requests').select('sender_id,receiver_id').eq('status', 'accepted').or(`sender_id.eq.${currentProfile.id},receiver_id.eq.${currentProfile.id}`)
-      if (!reqs?.length) { setFriends([]); return }
+      if (!reqs || reqs.length === 0) { setFriends([]); return }
       const ids = reqs.map(r => r.sender_id === currentProfile.id ? r.receiver_id : r.sender_id)
       const { data: p } = await supabase.from('profiles').select('id,first_name,last_name,username,avatar_url').in('id', ids)
       setFriends(p || [])
     }
     load()
-  }, [currentProfile.id])
+  }, [currentProfile?.id])
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}
       className="fixed inset-0 z-[500] bg-black/80 flex items-end sm:items-center justify-center p-0 sm:p-4 pb-4">
@@ -162,7 +161,7 @@ function FriendPicker({ title, currentProfile, onSelect, onClose }) {
         </div>
         <div className="overflow-y-auto flex-1 flex flex-col gap-2">
           {friends.map((f, i) => {
-            const name = [f.first_name, f.last_name].filter(Boolean).join(' ')
+            const name = [f?.first_name, f?.last_name].filter(Boolean).join(' ') || 'Unknown'
             return (
               <motion.button key={f.id} whileTap={{ scale: 0.98 }} onClick={() => onSelect(f)}
                 className="flex items-center gap-3 p-3 rounded-2xl bg-white/5 border border-white/5 text-left hover:bg-white/10 transition-colors">
@@ -182,10 +181,10 @@ function FriendPicker({ title, currentProfile, onSelect, onClose }) {
 }
 
 function EditModal({ msg, onSave, onClose }) {
-  const [val, setVal] = useState(msg.content || '')
+  const [val, setVal] = useState(msg?.content || '')
   const [saving, setSaving] = useState(false)
   const save = async () => {
-    if (!val.trim()) return; setSaving(true)
+    if (!val.trim() || !msg?.id) return; setSaving(true)
     const { error } = await supabase.from('messages').update({ content: val.trim() }).eq('id', msg.id)
     if (!error) onSave(msg.id, val.trim())
     setSaving(false); onClose()
@@ -226,35 +225,48 @@ export default function ChatRoom({ currentProfile }) {
   const [friendTyping, setFriendTyping] = useState(false)
   const [presenceCh, setPresenceCh] = useState(null)
   const [isBlocker, setIsBlocker] = useState(false)
+  const [isFriend, setIsFriend] = useState(false)
   
   const bottomRef = useRef(null)
   const myId = currentProfile?.id
   const myName = currentProfile?.firstName || 'Someone'
   const scrollBottom = useCallback(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [])
 
-  // Check Friend details and Block Status
   useEffect(() => {
     if (!friendId || !myId) return
     supabase.from('profiles').select('*').eq('id', friendId).single().then(({ data }) => { if (data) setFriend(data) })
     supabase.from('blocks').select('id').eq('blocker_id', myId).eq('blocked_id', friendId).single().then(({ data }) => { if (data) setIsBlocker(true) })
+    
+    // Check friendship status
+    supabase.from('friend_requests')
+      .select('status')
+      .or(`and(sender_id.eq.${myId},receiver_id.eq.${friendId}),and(sender_id.eq.${friendId},receiver_id.eq.${myId})`)
+      .eq('status', 'accepted')
+      .maybeSingle()
+      .then(({ data }) => {
+        setIsFriend(!!data)
+      })
   }, [friendId, myId])
 
   useEffect(() => {
-    if (!myId || !friendId) return
+    if (!myId || !friendId || !isFriend) {
+      if (isFriend === false) setLoading(false)
+      return
+    }
     setLoading(true)
     supabase.from('messages').select('*')
       .or(`and(sender_id.eq.${myId},receiver_id.eq.${friendId}),and(sender_id.eq.${friendId},receiver_id.eq.${myId})`)
       .order('created_at', { ascending: true })
       .then(({ data }) => { setMessages(data || []); setLoading(false); setTimeout(scrollBottom, 80) })
-  }, [myId, friendId])
+  }, [myId, friendId, isFriend, scrollBottom])
 
   useEffect(() => {
-    if (!myId || !friendId) return
+    if (!myId || !friendId || !isFriend) return
     supabase.from('messages').update({ read_at: new Date().toISOString() }).eq('receiver_id', myId).eq('sender_id', friendId).is('read_at', null).then(() => {})
-  }, [myId, friendId])
+  }, [myId, friendId, isFriend])
 
   useEffect(() => {
-    if (!myId || !friendId) return
+    if (!myId || !friendId || !isFriend) return
     const key = [myId, friendId].sort().join('-')
     const ch = supabase.channel(`chat-${key}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, (p) => {
@@ -270,10 +282,10 @@ export default function ChatRoom({ currentProfile }) {
       })
       .subscribe()
     return () => supabase.removeChannel(ch)
-  }, [myId, friendId])
+  }, [myId, friendId, isFriend, scrollBottom])
 
   useEffect(() => {
-    if (!myId || !friendId) return
+    if (!myId || !friendId || !isFriend) return
     const key = [myId, friendId].sort().join('-')
     const ch = supabase.channel(`presence-${key}`, { config: { presence: { key: myId } } })
     ch.on('broadcast', { event: 'typing' }, (payload) => {
@@ -282,7 +294,7 @@ export default function ChatRoom({ currentProfile }) {
     }).subscribe()
     setPresenceCh(ch)
     return () => { supabase.removeChannel(ch); setPresenceCh(null) }
-  }, [myId, friendId])
+  }, [myId, friendId, isFriend])
 
   const sendMessage = async (caption, audioUrl) => {
     if (audioUrl) { await supabase.from('messages').insert({ sender_id: myId, receiver_id: friendId, audio_url: audioUrl }); return }
@@ -315,14 +327,15 @@ export default function ChatRoom({ currentProfile }) {
 
   const forwardTo = async (f) => {
     setShowForward(false)
-    if (selectedMsg) await supabase.from('messages').insert({ sender_id: myId, receiver_id: f.id, content: selectedMsg.content })
+    if (selectedMsg && selectedMsg.content) await supabase.from('messages').insert({ sender_id: myId, receiver_id: f.id, content: selectedMsg.content })
     setSelectedMsg(null)
   }
 
-  const deleteMsg = async (msg) => { await supabase.from('messages').delete().eq('id', msg.id); setMessages(prev => prev.filter(m => m.id !== msg.id)) }
+  const deleteMsg = async (msg) => { if(!msg?.id) return; await supabase.from('messages').delete().eq('id', msg.id); setMessages(prev => prev.filter(m => m.id !== msg.id)) }
   const editMsg = (id, txt) => setMessages(prev => prev.map(m => m.id === id ? { ...m, content: txt } : m))
   
   const togglePinMsg = async (msg) => {
+    if(!msg?.id) return
     const nextVal = !msg.is_pinned
     await supabase.from('messages').update({ is_pinned: nextVal }).eq('id', msg.id)
     setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, is_pinned: nextVal } : m))
@@ -335,13 +348,12 @@ export default function ChatRoom({ currentProfile }) {
 
   const isBusy = sending
   const friendName = friend ? [friend.first_name, friend.last_name].filter(Boolean).join(' ') : '…'
-  const friendInit = friend ? [friend.first_name, friend.last_name].filter(Boolean).map(s => s[0]?.toUpperCase()).join('') : '?'
+  const friendInit = friend ? [friend.first_name, friend.last_name].filter(Boolean).map(s => s?.[0]?.toUpperCase()).join('') : '?'
   
-  const pinnedMessages = messages.filter(m => m.is_pinned)
+  const pinnedMessages = messages && messages.length > 0 ? messages.filter(m => m.is_pinned) : []
 
   return (
     <div className="flex flex-col h-[100dvh] w-full overflow-hidden bg-[#0a0a12] relative">
-      {/* Background glow effects */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
         <div className="absolute w-[60vw] h-[60vw] rounded-full top-[-20%] left-[-10%]" style={{ background: 'radial-gradient(circle,rgba(37,99,235,0.12),transparent 70%)', filter: 'blur(40px)' }} />
       </div>
@@ -354,8 +366,8 @@ export default function ChatRoom({ currentProfile }) {
           ? <img src={friend.avatar_url} alt="" className="w-10 h-10 rounded-xl object-cover shrink-0" />
           : <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-[13px] font-bold text-white shrink-0">{friendInit}</div>
         }
-        <div className="flex-1 min-w-0">
-          <p className="text-[15px] font-bold text-slate-100 truncate">{friendName}</p>
+        <div className="flex-1 min-w-0 cursor-pointer" onClick={() => navigate(`/user/${friendId}`)}>
+          <p className="text-[15px] font-bold text-slate-100 truncate hover:text-white transition-colors">{friendName}</p>
           <AnimatePresence mode="wait">
             {friendTyping
               ? <motion.p key="t" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-[11px] text-blue-400 font-medium">typing…</motion.p>
@@ -365,7 +377,6 @@ export default function ChatRoom({ currentProfile }) {
         </div>
       </header>
 
-      {/* Pinned Messages Header */}
       {pinnedMessages.length > 0 && (
         <div className="shrink-0 z-10 bg-white/5 border-b border-white/5 px-4 py-2 flex flex-col gap-1 max-h-[60px] overflow-y-auto">
           {pinnedMessages.map(pm => (
@@ -385,7 +396,19 @@ export default function ChatRoom({ currentProfile }) {
             </svg>
           </div>
         )}
-        {!loading && messages.length === 0 && (
+        {!loading && !isFriend && (
+           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col items-center justify-center h-full gap-4 text-center pb-10 max-w-[280px] mx-auto">
+             <div className="w-16 h-16 rounded-full bg-slate-800 flex items-center justify-center mb-2 shadow-inner border border-white/10">
+               <Lock className="w-8 h-8 text-slate-400" />
+             </div>
+             <p className="text-lg font-bold text-slate-200">Chat Locked</p>
+             <p className="text-sm text-slate-400 leading-relaxed">You must be friends to chat. Send a friend request first.</p>
+             <button onClick={() => navigate(`/user/${friendId}`)} className="mt-2 px-5 py-2.5 rounded-full bg-white/10 text-white font-medium text-sm hover:bg-white/20 transition-colors">
+               View Profile
+             </button>
+           </motion.div>
+        )}
+        {!loading && isFriend && (!messages || messages.length === 0) && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center justify-center h-full gap-3 text-center pb-10">
             <div className="text-5xl">👋</div>
             <p className="text-base font-semibold text-slate-400">No messages yet</p>
@@ -393,15 +416,17 @@ export default function ChatRoom({ currentProfile }) {
           </motion.div>
         )}
         
-        <div className="flex flex-col">
-          <AnimatePresence initial={false}>
-            {messages.map(msg => (
-              <Bubble key={msg.id} msg={msg} isMine={msg.sender_id === myId} myId={myId} 
-                replyMsg={msg.reply_to ? messages.find(m => m.id === msg.reply_to) : null}
-                onLongPress={m => setSelectedMsg(m)} navigate={navigate} />
-            ))}
-          </AnimatePresence>
-        </div>
+        {isFriend && (
+          <div className="flex flex-col">
+            <AnimatePresence initial={false}>
+              {messages && messages.length > 0 && messages.map(msg => (
+                <Bubble key={msg.id} msg={msg} isMine={msg.sender_id === myId} myId={myId} 
+                  replyMsg={msg.reply_to ? messages.find(m => m.id === msg.reply_to) : null}
+                  onLongPress={m => setSelectedMsg(m)} navigate={navigate} />
+              ))}
+            </AnimatePresence>
+          </div>
+        )}
         
         <AnimatePresence>
           {friendTyping && (
@@ -416,30 +441,31 @@ export default function ChatRoom({ currentProfile }) {
         <div ref={bottomRef} className="h-2" />
       </div>
 
-      {/* Input Area or Contextual Block UI */}
-      <div className="shrink-0 z-10 px-3 pb-4 pt-2 bg-[#0a0a12]/90 backdrop-blur-xl border-t border-white/5">
-        {isBlocker ? (
-          <div className="w-full bg-red-500/10 border border-red-500/20 backdrop-blur-md rounded-[20px] p-4 flex flex-col items-center justify-center text-center gap-2 shadow-[0_0_20px_rgba(239,68,68,0.1)]">
-            <Shield className="w-6 h-6 text-red-400" />
-            <p className="text-[14px] text-red-200 font-medium">Unblock the user first to continue the conversation</p>
-            <button onClick={handleUnblock} className="text-blue-400 font-semibold text-[15px] hover:text-blue-300 transition-colors mt-1 underline underline-offset-4">
-              unblock
-            </button>
-          </div>
-        ) : (
-          <>
-            <AnimatePresence>{imageFile && <ImagePreview file={imageFile} onRemove={() => setImageFile(null)} />}</AnimatePresence>
-            <TypingBar
-              text={text} setText={setText}
-              onSend={sendMessage} disabled={isBusy}
-              placeholder={messages.length === 0 ? 'Start chatting 👋' : 'Message…'}
-              onFileSelect={setImageFile} presenceChannel={presenceCh}
-              myId={myId} myName={myName}
-              replyTo={replyTo} onCancelReply={() => setReplyTo(null)}
-            />
-          </>
-        )}
-      </div>
+      {isFriend && (
+        <div className="shrink-0 z-10 px-3 pb-4 pt-2 bg-[#0a0a12]/90 backdrop-blur-xl border-t border-white/5">
+          {isBlocker ? (
+            <div className="w-full bg-red-500/10 border border-red-500/20 backdrop-blur-md rounded-[20px] p-4 flex flex-col items-center justify-center text-center gap-2 shadow-[0_0_20px_rgba(239,68,68,0.1)]">
+              <Shield className="w-6 h-6 text-red-400" />
+              <p className="text-[14px] text-red-200 font-medium">Unblock the user first to continue the conversation</p>
+              <button onClick={handleUnblock} className="text-blue-400 font-semibold text-[15px] hover:text-blue-300 transition-colors mt-1 underline underline-offset-4">
+                unblock
+              </button>
+            </div>
+          ) : (
+            <>
+              <AnimatePresence>{imageFile && <ImagePreview file={imageFile} onRemove={() => setImageFile(null)} />}</AnimatePresence>
+              <TypingBar
+                text={text} setText={setText}
+                onSend={sendMessage} disabled={isBusy}
+                placeholder={!messages || messages.length === 0 ? 'Start chatting 👋' : 'Message…'}
+                onFileSelect={setImageFile} presenceChannel={presenceCh}
+                myId={myId} myName={myName}
+                replyTo={replyTo} onCancelReply={() => setReplyTo(null)}
+              />
+            </>
+          )}
+        </div>
+      )}
 
       <AnimatePresence>
         {selectedMsg && !showForward && !showEdit && (
