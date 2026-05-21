@@ -17,10 +17,10 @@ function unreadLabel(n){
 
 /* ── Avatar with online dot ── */
 function FriendAvatar({friend,index,size=48,isOnline=false}){
-  const initials=[friend.first_name,friend.last_name].filter(Boolean).map(s=>s[0]?.toUpperCase()).join('')||'?'
+  const initials=[friend?.first_name,friend?.last_name].filter(Boolean).map(s=>s?.[0]?.toUpperCase()).join('')||'?'
   return(
     <div style={{position:'relative',flexShrink:0}}>
-      {friend.avatar_url
+      {friend?.avatar_url
         ?<img src={friend.avatar_url} alt={friend.username} style={{width:size,height:size,borderRadius:'14px',objectFit:'cover'}}/>
         :<div style={{width:size,height:size,borderRadius:'14px',background:GRADIENTS[index%GRADIENTS.length],display:'flex',alignItems:'center',justifyContent:'center',fontSize:'15px',fontWeight:700,color:'#fff',boxShadow:'0 4px 12px rgba(0,0,0,0.3)'}}>{initials}</div>
       }
@@ -102,9 +102,9 @@ function HiddenChatsView({profile,onClose}){
           </div>
         )}
         {hidden.map((row,i)=>{
-          const f=row.profiles
+          const f=row?.profiles
           if(!f)return null
-          const name=[f.first_name,f.last_name].filter(Boolean).join(' ')||'Unknown'
+          const name=[f?.first_name,f?.last_name].filter(Boolean).join(' ')||'Unknown'
           return(
             <motion.div key={row.id} layout
               initial={{opacity:0,y:12}} animate={{opacity:1,y:0}}
@@ -338,7 +338,7 @@ export default function Chats({profile}){
             )}
             <AnimatePresence>
               {!loading&&visibleFriends.map((friend,i)=>{
-                const fullName=[friend.first_name,friend.last_name].filter(Boolean).join(' ')||'Unknown'
+                const fullName=[friend?.first_name,friend?.last_name].filter(Boolean).join(' ')||'Unknown'
                 const isOnline=onlineUsers.has(friend.id)
                 const unread=unreadCounts[friend.id]||0
                 const badge=unreadLabel(unread)
@@ -347,7 +347,7 @@ export default function Chats({profile}){
                 const preview=getLastMsgPreview(lastMsg,profile.id)
 
                 return(
-                  <motion.div key={friend.id} layout
+                  <motion.div key={friend?.id} layout
                     initial={{opacity:0,y:18,scale:0.96}} animate={{opacity:1,y:0,scale:1}}
                     exit={{opacity:0,x:-20,scale:0.94}}
                     transition={{delay:Math.min(i*0.06,0.35),duration:0.35,ease:[0.16,1,0.3,1]}}

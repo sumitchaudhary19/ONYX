@@ -15,8 +15,8 @@ function unreadLabel(n){
 }
 
 function GAvatar({ g, i, size=50 }) {
-  if (g.avatar_url) return <img src={g.avatar_url} alt={g.name} style={{ width:size,height:size,borderRadius:'14px',objectFit:'cover',flexShrink:0 }}/>
-  return <div style={{ width:size,height:size,borderRadius:'14px',flexShrink:0,background:GRADS[i%GRADS.length],display:'flex',alignItems:'center',justifyContent:'center',fontSize:'18px',fontWeight:800,color:'#fff' }}>{(g.name||'G')[0].toUpperCase()}</div>
+  if (g?.avatar_url) return <img src={g.avatar_url} alt={g.name} style={{ width:size,height:size,borderRadius:'14px',objectFit:'cover',flexShrink:0 }}/>
+  return <div style={{ width:size,height:size,borderRadius:'14px',flexShrink:0,background:GRADS[i%GRADS.length],display:'flex',alignItems:'center',justifyContent:'center',fontSize:'18px',fontWeight:800,color:'#fff' }}>{(g?.name||'G')[0]?.toUpperCase()||'G'}</div>
 }
 
 function JoinModal({ group, profile, onClose, onDone }) {
@@ -47,8 +47,8 @@ function JoinModal({ group, profile, onClose, onDone }) {
         <div style={{display:'flex',alignItems:'center',gap:'14px',padding:'14px',borderRadius:'16px',background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.08)'}}>
           <GAvatar g={group} i={0} size={52}/>
           <div>
-            <p style={{fontSize:'16px',fontWeight:700,color:'#f0f4ff'}}>{group.name}</p>
-            <p style={{fontSize:'12px',color:'#64748b',marginTop:3}}>{group.description||'No description'}</p>
+            <p style={{fontSize:'16px',fontWeight:700,color:'#f0f4ff'}}>{group?.name}</p>
+            <p style={{fontSize:'12px',color:'#64748b',marginTop:3}}>{group?.description||'No description'}</p>
           </div>
         </div>
         {error && <p style={{fontSize:'12px',color:'#f87171',padding:'8px 12px',background:'rgba(239,68,68,0.1)',borderRadius:'10px'}}>{error}</p>}
@@ -147,23 +147,23 @@ export default function GroupsList({ profile }) {
         )}
         <AnimatePresence>
           {!loading && groups.map((g,i)=>{
-            const isMember=myIds.has(g.id), isAdmin=g.admin_id===profile?.id
-            const unread = unreadCounts[g.id] || 0
+            const isMember=myIds.has(g?.id), isAdmin=g?.admin_id===profile?.id
+            const unread = unreadCounts[g?.id] || 0
             const badge = unreadLabel(unread)
             
             return (
-              <motion.div key={g.id} layout initial={{opacity:0,y:14}} animate={{opacity:1,y:0}} exit={{opacity:0,scale:0.95}}
+              <motion.div key={g?.id} layout initial={{opacity:0,y:14}} animate={{opacity:1,y:0}} exit={{opacity:0,scale:0.95}}
                 transition={{delay:Math.min(i*0.05,0.3)}} whileHover={{y:-2,backgroundColor:'rgba(255,255,255,0.05)'}} whileTap={{scale:0.985}}
                 onClick={()=>handleGroupClick(g, isMember)}
                 style={{display:'flex',alignItems:'center',gap:'13px',padding:'13px 14px',marginBottom:'5px',borderRadius:'18px',border:`1px solid ${unread>0?'rgba(59,130,246,0.25)':'rgba(255,255,255,0.07)'}`,background:unread>0?'rgba(59,130,246,0.05)':'rgba(255,255,255,0.03)',cursor:'pointer'}}>
                 <GAvatar g={g} i={i}/>
                 <div style={{flex:1,minWidth:0}}>
                   <div style={{display:'flex',alignItems:'center',gap:'6px'}}>
-                    <p style={{fontSize:'15px',fontWeight:unread>0?700:600,color:'#f0f4ff',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{g.name}</p>
+                    <p style={{fontSize:'15px',fontWeight:unread>0?700:600,color:'#f0f4ff',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{g?.name}</p>
                     {isAdmin && <span style={{fontSize:'9px',fontWeight:700,color:'#f59e0b',background:'rgba(245,158,11,0.15)',padding:'2px 6px',borderRadius:'6px',flexShrink:0}}>ADMIN</span>}
                     {isMember&&!isAdmin && <span style={{fontSize:'9px',fontWeight:700,color:'#34d399',background:'rgba(52,211,153,0.12)',padding:'2px 6px',borderRadius:'6px',flexShrink:0}}>MEMBER</span>}
                   </div>
-                  <p style={{fontSize:'12px',color:unread>0?'#94a3b8':'#64748b',marginTop:2,fontWeight:unread>0?600:400}}>{g.description||'No description'}</p>
+                  <p style={{fontSize:'12px',color:unread>0?'#94a3b8':'#64748b',marginTop:2,fontWeight:unread>0?600:400}}>{g?.description||'No description'}</p>
                 </div>
                 {isMember
                   ? badge 
