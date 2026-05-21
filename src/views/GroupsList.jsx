@@ -83,16 +83,7 @@ export default function GroupsList({ profile }) {
 
   return (
     <div style={{display:'flex',flexDirection:'column',height:'100%',overflow:'hidden'}}>
-      <div style={{padding:'16px 16px 12px',flexShrink:0,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-        <div>
-          <h2 style={{fontSize:'20px',fontWeight:700,color:'#f0f4ff',marginBottom:2}}>Groups</h2>
-          <p style={{fontSize:'12px',color:'#64748b'}}>{loading?'Loading…':`${groups.length} groups available`}</p>
-        </div>
-        <motion.button onClick={()=>setShowCreate(true)} whileHover={{scale:1.04,y:-1}} whileTap={{scale:0.96}}
-          style={{display:'flex',alignItems:'center',gap:'7px',padding:'10px 16px',borderRadius:'14px',border:'none',background:'linear-gradient(135deg,#2563eb,#1d4ed8)',color:'#fff',fontSize:'13px',fontWeight:600,cursor:'pointer',boxShadow:'0 4px 14px rgba(37,99,235,0.4)'}}>
-          <Plus style={{width:15,height:15}}/> Make Group
-        </motion.button>
-      </div>
+
 
       <div style={{flex:1,overflowY:'auto',padding:'0 10px 16px'}}>
         {loading && [1,2,3].map(i=><div key={i} className="skeleton" style={{height:'76px',marginBottom:'6px',borderRadius:'18px'}}/>)}

@@ -8,19 +8,17 @@ import Chats from '../views/Chats'
 import SearchView from '../views/Search'
 import Profile from '../views/Profile'
 import NotificationsView from '../views/Notifications'
-import GroupsList from '../views/GroupsList'
 import SettingsView from '../views/SettingsView'
-import Feed from '../views/Feed'
 import HomeFeed from '../views/HomeFeed'
 import SnapCamera from '../views/SnapCamera'
+import ActionHubFAB from './ActionHubFAB'
+import CreatePostModal from './CreatePostModal'
+import CreateGroupModal from './CreateGroupModal'
 import { supabase } from '../supabaseClient'
 
 const TABS = [
   { id: 'home',          label: 'Home',    Icon: Sparkles,     glow: 'blue' },
   { id: 'chats',         label: 'Chats',   Icon: MessageCircle },
-  { id: 'groups',        label: 'Groups',  Icon: Users         },
-  { id: 'feed',          label: 'Post',    Icon: ImagePlus,    glow: 'violet' },
-  { id: 'search',        label: 'Search',  Icon: Search        },
   { id: 'notifications', label: 'Alerts',  Icon: Bell          },
   { id: 'profile',       label: 'Profile', Icon: User          },
 ]
@@ -55,8 +53,6 @@ const GLOW_STYLES = {
 function ViewComponent({ id, profile, session }) {
   if (id === 'home')          return <HomeFeed          profile={profile} session={session}/>
   if (id === 'chats')         return <Chats             profile={profile} session={session}/>
-  if (id === 'groups')        return <GroupsList        profile={profile} session={session}/>
-  if (id === 'feed')          return <Feed              profile={profile} session={session}/>
   if (id === 'search')        return <SearchView        profile={profile} session={session}/>
   if (id === 'notifications') return <NotificationsView profile={profile} session={session}/>
   if (id === 'profile')       return <Profile           profile={profile} session={session}/>
@@ -68,6 +64,8 @@ export default function MainLayout({ profile, session }) {
   const [activeTab,    setActiveTab   ] = useState('home')
   const [pendingCount, setPendingCount] = useState(0)
   const [showSnap,     setShowSnap    ] = useState(false)
+  const [showPost,     setShowPost    ] = useState(false)
+  const [showGroup,    setShowGroup   ] = useState(false)
 
   useEffect(() => {
     if (!profile?.id) return
@@ -102,11 +100,6 @@ export default function MainLayout({ profile, session }) {
   const initials = [profile?.firstName, profile?.lastName]
     .filter(Boolean).map(s => s[0]?.toUpperCase()).join('') || 'M'
 
-  const allTabs = [
-    ...TABS,
-    { id: 'snap', label: 'Snap', Icon: Aperture, glow: 'yellow', isSnap: true },
-  ]
-
   return (
     <div className="flex flex-col md:flex-row h-[100dvh] w-full bg-[#060b18] overflow-hidden">
       
@@ -119,8 +112,8 @@ export default function MainLayout({ profile, session }) {
         </div>
 
         {/* Nav items */}
-        {allTabs.map(({ id, label, Icon, glow, isSnap }) => {
-          const isActive  = activeTab === id && !isSnap
+        {TABS.map(({ id, label, Icon, glow }) => {
+          const isActive  = activeTab === id
           const showBadge = id === 'notifications' && pendingCount > 0 && !isActive
           const glowStyle = glow ? GLOW_STYLES[glow] : null
 
@@ -213,15 +206,14 @@ export default function MainLayout({ profile, session }) {
             </div>
             <div>
               <h1 className={`text-[17px] font-bold text-white leading-tight ${activeTab === 'home' ? 'animate-onyx-glow' : ''}`}>
-                {activeTab === 'feed' ? 'Global Posts' : activeTab === 'home' ? 'Home' : activeTab === 'settings' ? 'Settings' : TABS.find(t => t.id === activeTab)?.label || 'ONYX'}
+                {activeTab === 'feed' ? 'Global Posts' : activeTab === 'home' ? 'Home' : activeTab === 'search' ? 'Search' : activeTab === 'settings' ? 'Settings' : TABS.find(t => t.id === activeTab)?.label || 'ONYX'}
               </h1>
               <p className="text-[11px] text-slate-400 mt-0.5 font-medium tracking-widest uppercase">ONYX Platform</p>
             </div>
           </div>
-          <div className="flex items-center gap-2 px-3.5 py-2 rounded-xl border border-white/5 bg-white/5 cursor-pointer hover:bg-white/10 transition-colors" onClick={() => handleTabChange('search')}>
-            <Search className="w-4 h-4 text-slate-400" />
-            <span className="text-xs text-slate-400 hidden sm:inline-block">Search…</span>
-          </div>
+          <motion.button whileTap={{scale:0.9}} className="w-10 h-10 rounded-full border border-white/5 bg-white/5 flex items-center justify-center cursor-pointer hover:bg-white/10 transition-colors" onClick={() => handleTabChange('search')}>
+            <Search className="w-5 h-5 text-slate-300" />
+          </motion.button>
         </header>
 
         {/* Animated page */}
@@ -241,9 +233,13 @@ export default function MainLayout({ profile, session }) {
         </main>
       </div>
 
-      {/* Snap Camera overlay */}
+      {/* Action Hub & Modals */}
+      <ActionHubFAB onSnap={() => setShowSnap(true)} onPost={() => setShowPost(true)} onNewGroup={() => setShowGroup(true)} />
+
       <AnimatePresence>
         {showSnap && <SnapCamera currentProfile={profile} onClose={() => setShowSnap(false)} />}
+        {showPost && <CreatePostModal currentProfile={profile} onClose={() => setShowPost(false)} />}
+        {showGroup && <CreateGroupModal profile={profile} onClose={() => setShowGroup(false)} />}
       </AnimatePresence>
     </div>
   )

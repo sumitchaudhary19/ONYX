@@ -1,0 +1,67 @@
+import { useState } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { Plus, Camera, PenSquare, Users } from 'lucide-react'
+
+export default function ActionHubFAB({ onSnap, onPost, onNewGroup }) {
+  const [isOpen, setIsOpen] = useState(false)
+
+  const toggle = () => setIsOpen(!isOpen)
+
+  const actions = [
+    { id: 'snap', label: 'Snap', icon: Camera, color: 'text-yellow-400', bg: 'bg-yellow-500/20', action: () => { setIsOpen(false); onSnap() } },
+    { id: 'post', label: 'Post', icon: PenSquare, color: 'text-violet-400', bg: 'bg-violet-500/20', action: () => { setIsOpen(false); onPost() } },
+    { id: 'group', label: 'New Group', icon: Users, color: 'text-blue-400', bg: 'bg-blue-500/20', action: () => { setIsOpen(false); onNewGroup() } },
+  ]
+
+  return (
+    <>
+      <AnimatePresence>
+        {isOpen && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[400]"
+            onClick={() => setIsOpen(false)}
+          />
+        )}
+      </AnimatePresence>
+
+      <div className="fixed bottom-24 md:bottom-10 right-6 z-[450] flex flex-col items-end gap-4">
+        <AnimatePresence>
+          {isOpen && actions.map((item, i) => (
+            <motion.button
+              key={item.id}
+              initial={{ opacity: 0, scale: 0.5, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.5, y: 20 }}
+              transition={{ delay: (actions.length - 1 - i) * 0.05, type: 'spring', stiffness: 300, damping: 25 }}
+              onClick={item.action}
+              className="flex items-center gap-3"
+            >
+              <span className="px-3 py-1.5 rounded-lg bg-[#0d1630] text-slate-200 text-sm font-semibold shadow-lg border border-white/10">
+                {item.label}
+              </span>
+              <div className={`w-12 h-12 rounded-full ${item.bg} border border-white/10 shadow-[0_4px_16px_rgba(0,0,0,0.5)] flex items-center justify-center backdrop-blur-md`}>
+                <item.icon className={`w-5 h-5 ${item.color}`} />
+              </div>
+            </motion.button>
+          ))}
+        </AnimatePresence>
+
+        <motion.button
+          whileTap={{ scale: 0.9 }}
+          onClick={toggle}
+          className="w-14 h-14 rounded-full bg-gradient-to-r from-blue-600 to-violet-600 shadow-[0_0_24px_rgba(124,58,237,0.6)] flex items-center justify-center relative overflow-hidden"
+        >
+          <motion.div
+            animate={{ rotate: isOpen ? 45 : 0 }}
+            transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+            className="z-10"
+          >
+            <Plus className="w-8 h-8 text-white" />
+          </motion.div>
+          <div className="absolute inset-0 bg-white/20 blur-md rounded-full" />
+        </motion.button>
+      </div>
+    </>
+  )
+}

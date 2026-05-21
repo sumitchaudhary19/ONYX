@@ -3,6 +3,7 @@ import{motion,AnimatePresence}from'framer-motion'
 import{MessageCircle,Users,Eye,EyeOff,Trash2,X}from'lucide-react'
 import{useNavigate}from'react-router-dom'
 import{supabase}from'../supabaseClient'
+import GroupsList from './GroupsList'
 
 const GRADIENTS=['linear-gradient(135deg,#3b82f6,#06b6d4)','linear-gradient(135deg,#8b5cf6,#ec4899)','linear-gradient(135deg,#10b981,#14b8a6)','linear-gradient(135deg,#f59e0b,#f97316)','linear-gradient(135deg,#ef4444,#f43f5e)','linear-gradient(135deg,#a855f7,#7c3aed)']
 
@@ -127,6 +128,7 @@ function HiddenChatsView({profile,onClose}){
 }
 
 export default function Chats({profile}){
+  const[viewMode,setViewMode]=useState('dms')
   const[friends,setFriends]=useState([])
   const[loading,setLoading]=useState(true)
   const[hiddenIds,setHiddenIds]=useState(new Set())
@@ -183,63 +185,74 @@ export default function Chats({profile}){
 
   return(
     <div style={{display:'flex',flexDirection:'column',height:'100%',overflow:'hidden',position:'relative'}}>
-      <div style={{padding:'20px 20px 12px',flexShrink:0,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-        <div>
-          <h2 style={{fontSize:'20px',fontWeight:700,color:'#fff',marginBottom:'2px'}}>Messages</h2>
-          <p style={{fontSize:'12px',color:'#64748b'}}>{loading?'Loading…':`${visibleFriends.length} friend${visibleFriends.length!==1?'s':''} connected`}</p>
+      <div style={{padding:'20px 20px 12px',flexShrink:0}}>
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'16px'}}>
+          <h2 style={{fontSize:'20px',fontWeight:700,color:'#fff'}}>Messages</h2>
+          <motion.button whileTap={{scale:0.88}} onClick={()=>setShowHidden(true)}
+            title="Hidden Chats"
+            style={{width:36,height:36,borderRadius:'11px',background:'rgba(255,255,255,0.06)',border:'1px solid rgba(255,255,255,0.09)',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color:'#64748b'}}>
+            <EyeOff style={{width:16,height:16}}/>
+          </motion.button>
         </div>
-        <motion.button whileTap={{scale:0.88}} onClick={()=>setShowHidden(true)}
-          title="Hidden Chats"
-          style={{width:36,height:36,borderRadius:'11px',background:'rgba(255,255,255,0.06)',border:'1px solid rgba(255,255,255,0.09)',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color:'#64748b'}}>
-          <EyeOff style={{width:16,height:16}}/>
-        </motion.button>
+
+        {/* Segmented Control */}
+        <div style={{display:'flex',background:'rgba(255,255,255,0.05)',borderRadius:'12px',padding:'4px'}}>
+          <button onClick={()=>setViewMode('dms')} style={{flex:1,padding:'8px',borderRadius:'8px',border:'none',background:viewMode==='dms'?'rgba(255,255,255,0.1)':'transparent',color:viewMode==='dms'?'#fff':'#94a3b8',fontSize:'13px',fontWeight:600,cursor:'pointer',transition:'all 0.2s'}}>Direct Messages</button>
+          <button onClick={()=>setViewMode('groups')} style={{flex:1,padding:'8px',borderRadius:'8px',border:'none',background:viewMode==='groups'?'rgba(255,255,255,0.1)':'transparent',color:viewMode==='groups'?'#fff':'#94a3b8',fontSize:'13px',fontWeight:600,cursor:'pointer',transition:'all 0.2s'}}>Groups</button>
+        </div>
       </div>
 
-      <div style={{flex:1,overflowY:'auto',padding:'0 10px 16px'}}>
-        {loading&&(
-          <div style={{display:'flex',flexDirection:'column',gap:'6px',padding:'4px'}}>
-            {[1,2,3].map(i=><div key={i} style={{height:'74px',borderRadius:'18px',background:'rgba(255,255,255,0.04)',animation:'pulse 1.5s ease-in-out infinite'}}/>)}
-          </div>
-        )}
-        {!loading&&visibleFriends.length===0&&(
-          <motion.div initial={{opacity:0,y:16}} animate={{opacity:1,y:0}}
-            style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:'72px 28px',textAlign:'center',gap:'16px'}}>
-            <div style={{width:72,height:72,borderRadius:'22px',background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.08)',display:'flex',alignItems:'center',justifyContent:'center'}}>
-              <Users style={{width:30,height:30,color:'#334155'}}/>
-            </div>
-            <div>
-              <p style={{fontSize:'16px',fontWeight:600,color:'#475569',marginBottom:'6px'}}>No friends yet</p>
-              <p style={{fontSize:'13px',color:'#334155',lineHeight:1.55}}>Go to <strong style={{color:'#60a5fa'}}>Search</strong> to find MNIT classmates!</p>
-            </div>
-          </motion.div>
-        )}
-        <AnimatePresence>
-          {!loading&&visibleFriends.map((friend,i)=>{
-            const fullName=[friend.first_name,friend.last_name].filter(Boolean).join(' ')||'Unknown'
-            return(
-              <motion.div key={friend.id} layout
-                initial={{opacity:0,y:18,scale:0.96}} animate={{opacity:1,y:0,scale:1}}
-                exit={{opacity:0,x:-20,scale:0.94}}
-                transition={{delay:Math.min(i*0.06,0.35),duration:0.35,ease:[0.16,1,0.3,1]}}
-                whileHover={{y:-2,backgroundColor:'rgba(255,255,255,0.058)',boxShadow:'0 8px 24px rgba(0,0,0,0.25)'}}
-                whileTap={{scale:0.98}}
-                onClick={()=>navigate(`/chat/room/${friend.id}`)}
-                onTouchStart={()=>startPress(friend)} onTouchEnd={endPress} onTouchMove={endPress}
-                onMouseDown={()=>startPress(friend)} onMouseUp={endPress} onMouseLeave={endPress}
-                style={{display:'flex',alignItems:'center',gap:'14px',padding:'13px 14px',marginBottom:'5px',borderRadius:'20px',border:'1px solid rgba(255,255,255,0.07)',background:'rgba(255,255,255,0.03)',cursor:'pointer',transition:'background 0.2s,box-shadow 0.2s'}}>
-                <FriendAvatar friend={friend} index={i} size={48}/>
-                <div style={{flex:1,minWidth:0}}>
-                  <p style={{fontSize:'15px',fontWeight:600,color:'#f1f5f9',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{fullName}</p>
-                  <p style={{fontSize:'12px',color:'#64748b',marginTop:'2px'}}>@{friend.username||'—'}</p>
-                  {friend.bio&&<p style={{fontSize:'11px',color:'#475569',marginTop:'3px',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{friend.bio}</p>}
+      <div style={{flex:1,overflowY:'auto',padding:'0 10px 16px', position: 'relative'}}>
+        {viewMode === 'groups' ? (
+          <GroupsList profile={profile} />
+        ) : (
+          <>
+            {loading&&(
+              <div style={{display:'flex',flexDirection:'column',gap:'6px',padding:'4px'}}>
+                {[1,2,3].map(i=><div key={i} style={{height:'74px',borderRadius:'18px',background:'rgba(255,255,255,0.04)',animation:'pulse 1.5s ease-in-out infinite'}}/>)}
+              </div>
+            )}
+            {!loading&&visibleFriends.length===0&&(
+              <motion.div initial={{opacity:0,y:16}} animate={{opacity:1,y:0}}
+                style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:'72px 28px',textAlign:'center',gap:'16px'}}>
+                <div style={{width:72,height:72,borderRadius:'22px',background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.08)',display:'flex',alignItems:'center',justifyContent:'center'}}>
+                  <Users style={{width:30,height:30,color:'#334155'}}/>
                 </div>
-                <motion.div whileHover={{scale:1.1}} style={{flexShrink:0,width:36,height:36,borderRadius:'11px',background:'rgba(37,99,235,0.15)',display:'flex',alignItems:'center',justifyContent:'center'}}>
-                  <MessageCircle style={{width:16,height:16,color:'#60a5fa'}}/>
-                </motion.div>
+                <div>
+                  <p style={{fontSize:'16px',fontWeight:600,color:'#475569',marginBottom:'6px'}}>No friends yet</p>
+                  <p style={{fontSize:'13px',color:'#334155',lineHeight:1.55}}>Go to <strong style={{color:'#60a5fa'}}>Search</strong> to find MNIT classmates!</p>
+                </div>
               </motion.div>
-            )
-          })}
-        </AnimatePresence>
+            )}
+            <AnimatePresence>
+              {!loading&&visibleFriends.map((friend,i)=>{
+                const fullName=[friend.first_name,friend.last_name].filter(Boolean).join(' ')||'Unknown'
+                return(
+                  <motion.div key={friend.id} layout
+                    initial={{opacity:0,y:18,scale:0.96}} animate={{opacity:1,y:0,scale:1}}
+                    exit={{opacity:0,x:-20,scale:0.94}}
+                    transition={{delay:Math.min(i*0.06,0.35),duration:0.35,ease:[0.16,1,0.3,1]}}
+                    whileHover={{y:-2,backgroundColor:'rgba(255,255,255,0.058)',boxShadow:'0 8px 24px rgba(0,0,0,0.25)'}}
+                    whileTap={{scale:0.98}}
+                    onClick={()=>navigate(`/chat/room/${friend.id}`)}
+                    onTouchStart={()=>startPress(friend)} onTouchEnd={endPress} onTouchMove={endPress}
+                    onMouseDown={()=>startPress(friend)} onMouseUp={endPress} onMouseLeave={endPress}
+                    style={{display:'flex',alignItems:'center',gap:'14px',padding:'13px 14px',marginBottom:'5px',borderRadius:'20px',border:'1px solid rgba(255,255,255,0.07)',background:'rgba(255,255,255,0.03)',cursor:'pointer',transition:'background 0.2s,box-shadow 0.2s'}}>
+                    <FriendAvatar friend={friend} index={i} size={48}/>
+                    <div style={{flex:1,minWidth:0}}>
+                      <p style={{fontSize:'15px',fontWeight:600,color:'#f1f5f9',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{fullName}</p>
+                      <p style={{fontSize:'12px',color:'#64748b',marginTop:'2px'}}>@{friend.username||'—'}</p>
+                      {friend.bio&&<p style={{fontSize:'11px',color:'#475569',marginTop:'3px',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{friend.bio}</p>}
+                    </div>
+                    <motion.div whileHover={{scale:1.1}} style={{flexShrink:0,width:36,height:36,borderRadius:'11px',background:'rgba(37,99,235,0.15)',display:'flex',alignItems:'center',justifyContent:'center'}}>
+                      <MessageCircle style={{width:16,height:16,color:'#60a5fa'}}/>
+                    </motion.div>
+                  </motion.div>
+                )
+              })}
+            </AnimatePresence>
+          </>
+        )}
       </div>
 
       <AnimatePresence>
