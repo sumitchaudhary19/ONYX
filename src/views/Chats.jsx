@@ -295,6 +295,18 @@ export default function Chats({profile}){
 
   const visibleFriends=friends.filter(f=>!hiddenIds.has(f.id))
 
+  // Safety guard — must come after ALL hooks to satisfy React's rules of hooks
+  if (!profile) return (
+    <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',height:'100%',background:'#060b18',gap:'12px'}}>
+      <svg style={{width:32,height:32,color:'#3b82f6',animation:'spin 1s linear infinite'}} fill="none" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" style={{opacity:0.25}} />
+        <path fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+      </svg>
+      <p style={{color:'#475569',fontSize:'14px'}}>Loading chats…</p>
+      <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>
+    </div>
+  )
+
   return(
     <div style={{display:'flex',flexDirection:'column',height:'100%',overflow:'hidden',position:'relative'}}>
       <div style={{padding:'20px 20px 12px',flexShrink:0}}>

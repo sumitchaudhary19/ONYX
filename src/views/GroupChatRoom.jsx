@@ -201,6 +201,17 @@ export default function GroupChatRoom({ currentProfile }) {
   const isBusy = sending || uploading
   const typerNames = Object.values(typers)
 
+  // Safety guard — must come after ALL hooks to satisfy React's rules of hooks
+  if (!currentProfile) return (
+    <div className="flex flex-col items-center justify-center h-[100dvh] bg-[#0a0a12]">
+      <svg className="w-8 h-8 text-blue-500 animate-spin mb-3" fill="none" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" className="opacity-25" />
+        <path fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+      </svg>
+      <p className="text-slate-500 text-sm">Loading…</p>
+    </div>
+  )
+
   return (
     <div className="flex flex-col h-[100dvh] w-full bg-[#0a0a12] overflow-hidden relative">
       <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
