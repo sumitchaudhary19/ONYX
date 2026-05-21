@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Component } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   MessageCircle, Search, Bell, User,
@@ -15,6 +15,52 @@ import ActionHubFAB from './ActionHubFAB'
 import CreatePostModal from './CreatePostModal'
 import CreateGroupModal from './CreateGroupModal'
 import { supabase } from '../supabaseClient'
+
+/* ── Per-view Error Boundary ── */
+class ViewErrorBoundary extends Component {
+  constructor(props) { super(props); this.state = { hasError: false, error: null } }
+  static getDerivedStateFromError(error) { return { hasError: true, error } }
+  componentDidCatch(error, info) { console.error('[ViewError]', error, info) }
+  componentDidUpdate(prevProps) {
+    // Reset error when view changes
+    if (prevProps.viewId !== this.props.viewId && this.state.hasError) {
+      this.setState({ hasError: false, error: null })
+    }
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', padding: '24px', gap: '12px', textAlign: 'center' }}>
+          <div style={{ width: '48px', height: '48px', borderRadius: '14px', background: 'rgba(239,68,68,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid rgba(239,68,68,0.3)' }}>
+            <svg width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="#f87171" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          </div>
+          <p style={{ fontSize: '16px', fontWeight: 700, color: '#f1f5f9' }}>This section crashed</p>
+          <pre style={{ fontSize: '11px', color: '#f87171', background: 'rgba(239,68,68,0.1)', borderRadius: '8px', padding: '10px', maxWidth: '90vw', maxHeight: '100px', overflow: 'auto', textAlign: 'left', wordBreak: 'break-all', whiteSpace: 'pre-wrap', border: '1px solid rgba(239,68,68,0.2)' }}>{this.state.error?.message || this.state.error?.toString()}</pre>
+          <button onClick={() => this.setState({ hasError: false, error: null })} style={{ marginTop: '4px', padding: '10px 24px', borderRadius: '10px', border: 'none', background: '#2563eb', color: '#fff', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}>Try Again</button>
+        </div>
+      )
+    }
+    return this.props.children
+  }
+}
+
+function ViewContent({ id, profile, session }) {
+  if (id === 'home')          return <HomeFeed          profile={profile} session={session}/>
+  if (id === 'chats')         return <Chats             profile={profile} session={session}/>
+  if (id === 'search')        return <SearchView        profile={profile} session={session}/>
+  if (id === 'notifications') return <NotificationsView profile={profile} session={session}/>
+  if (id === 'profile')       return <Profile           profile={profile} session={session}/>
+  if (id === 'settings')      return <SettingsView      profile={profile} session={session}/>
+  return null
+}
+
+function ViewComponent({ id, profile, session }) {
+  return (
+    <ViewErrorBoundary viewId={id}>
+      <ViewContent id={id} profile={profile} session={session} />
+    </ViewErrorBoundary>
+  )
+}
 
 const TABS = [
   { id: 'home',          label: 'Home',    Icon: Sparkles,     glow: 'blue' },
@@ -48,16 +94,6 @@ const GLOW_STYLES = {
     bg:       'bg-yellow-500/20 shadow-[0_0_16px_rgba(253,224,71,0.4)]',
     badge:    'bg-yellow-400',
   },
-}
-
-function ViewComponent({ id, profile, session }) {
-  if (id === 'home')          return <HomeFeed          profile={profile} session={session}/>
-  if (id === 'chats')         return <Chats             profile={profile} session={session}/>
-  if (id === 'search')        return <SearchView        profile={profile} session={session}/>
-  if (id === 'notifications') return <NotificationsView profile={profile} session={session}/>
-  if (id === 'profile')       return <Profile           profile={profile} session={session}/>
-  if (id === 'settings')      return <SettingsView      profile={profile} session={session}/>
-  return null
 }
 
 export default function MainLayout({ profile, session }) {
