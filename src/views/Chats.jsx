@@ -185,12 +185,16 @@ export default function Chats({profile}){
   },[friends,profile?.id])
 
   function setupGlobalPresence(){
-    const ch=supabase.channel('global-presence')
+    const ch=supabase.channel(`chats-presence-${profile.id}`)
     ch.on('presence',{event:'sync'},()=>{
       const state=ch.presenceState()
       const ids=new Set(Object.values(state).flatMap(arr=>arr.map(u=>u.user_id)))
       setOnlineUsers(ids)
-    }).subscribe()
+    }).subscribe(async(status)=>{
+      if(status==='SUBSCRIBED'){
+        await ch.track({user_id:profile.id,online_at:new Date().toISOString()})
+      }
+    })
     presenceChRef.current=ch
   }
 
