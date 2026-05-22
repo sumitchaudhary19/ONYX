@@ -540,7 +540,7 @@ export default function Chats({profile}){
                     transition={{delay:Math.min(i*0.06,0.35),duration:0.35,ease:[0.16,1,0.3,1]}}
                     whileHover={{y:-2,backgroundColor:'rgba(255,255,255,0.058)',boxShadow:'0 8px 24px rgba(0,0,0,0.25)'}}
                     whileTap={{scale:0.98}}
-                    onClick={()=>{ setUnreadCounts(prev=>({...prev,[friend.id]:0})); navigate(`/chat/room/${friend.id}`) }}
+                    onClick={async()=>{ setUnreadCounts(prev=>({...prev,[friend.id]:0})); navigate(`/chat/room/${friend.id}`); await supabase.from('messages').update({read_at:new Date().toISOString()}).eq('receiver_id',profile.id).eq('sender_id',friend.id).is('read_at',null) }}
                     onTouchStart={()=>startPress(friend)} onTouchEnd={endPress} onTouchMove={endPress}
                     onMouseDown={()=>startPress(friend)} onMouseUp={endPress} onMouseLeave={endPress}
                     style={{display:'flex',alignItems:'center',gap:'14px',padding:'13px 14px',marginBottom:'5px',borderRadius:'20px',border:`1px solid ${unread>0?'rgba(59,130,246,0.25)':'rgba(255,255,255,0.07)'}`,background:unread>0?'rgba(59,130,246,0.05)':'rgba(255,255,255,0.03)',cursor:'pointer',transition:'background 0.2s,box-shadow 0.2s'}}>

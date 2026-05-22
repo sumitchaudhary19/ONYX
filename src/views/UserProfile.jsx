@@ -224,7 +224,7 @@ export default function UserProfile({ currentProfile }) {
           supabase.from('friend_requests').select('*', { count: 'exact', head: true })
             .eq('status', 'accepted').or(`sender_id.eq.${userId},receiver_id.eq.${userId}`),
           supabase.from('posts').select('*,profiles:user_id(id,first_name,last_name,avatar_url)').eq('user_id', userId).order('created_at', { ascending: false }),
-          supabase.from('stories').select('*').eq('user_id', userId).gt('created_at', twentyFourHoursAgo).order('created_at', { ascending: false }).limit(1).maybeSingle()
+          supabase.from('stories').select('*').eq('user_id', userId).gt('created_at', twentyFourHoursAgo).neq('is_deleted', true).order('created_at', { ascending: false }).limit(1).maybeSingle()
         ])
 
         if (userError || !userData) {

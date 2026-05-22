@@ -69,13 +69,24 @@ function OwnStoryModal({ story, onClose, onDelete }) {
   const handleDelete = async () => {
     if(!window.confirm("Delete this story?")) return
     setDeleting(true)
-    const { error } = await supabase.from('stories').update({ is_deleted: true }).eq('id', story.id)
+    // Try hard delete first, fall back to soft-delete
+    let error = null
+    const { error: delErr } = await supabase.from('stories').delete().eq('id', story.id)
+    if (delErr) {
+      // Fallback: soft-delete
+      const { error: updErr } = await supabase.from('stories').update({ is_deleted: true }).eq('id', story.id)
+      error = updErr
+    }
     setDeleting(false)
-    if (!error) {
+    if (!error && !delErr) {
+      if (onDelete) onDelete()
+      onClose()
+    } else if (!error) {
+      // soft-delete succeeded
       if (onDelete) onDelete()
       onClose()
     } else {
-      alert("Failed to delete story")
+      alert("Failed to delete story: " + (error?.message || "Unknown error"))
     }
   }
 
@@ -134,6 +145,7 @@ export default function HomeFeed({ profile }) {
         .select('*')
         .eq('user_id', myId)
         .gt('created_at', twentyFourHoursAgo)
+        .neq('is_deleted', true)
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle()
