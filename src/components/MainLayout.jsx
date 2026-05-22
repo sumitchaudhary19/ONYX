@@ -45,20 +45,20 @@ class ViewErrorBoundary extends Component {
   }
 }
 
-function ViewContent({ id, profile, session }) {
-  if (id === 'home')          return <HomeFeed          profile={profile} session={session}/>
-  if (id === 'chats')         return <Chats             profile={profile} session={session}/>
-  if (id === 'search')        return <SearchView        profile={profile} session={session}/>
-  if (id === 'notifications') return <NotificationsView profile={profile} session={session}/>
-  if (id === 'profile')       return <Profile           profile={profile} session={session}/>
-  if (id === 'settings')      return <SettingsView      profile={profile} session={session}/>
+function ViewContent({ id, profile, session, onTabChange }) {
+  if (id === 'home')          return <HomeFeed          profile={profile} session={session} onTabChange={onTabChange}/>
+  if (id === 'chats')         return <Chats             profile={profile} session={session} onTabChange={onTabChange}/>
+  if (id === 'search')        return <SearchView        profile={profile} session={session} onTabChange={onTabChange}/>
+  if (id === 'notifications') return <NotificationsView profile={profile} session={session} onTabChange={onTabChange}/>
+  if (id === 'profile')       return <Profile           profile={profile} session={session} onTabChange={onTabChange}/>
+  if (id === 'settings')      return <SettingsView      profile={profile} session={session} onTabChange={onTabChange}/>
   return null
 }
 
-function ViewComponent({ id, profile, session }) {
+function ViewComponent({ id, profile, session, onTabChange }) {
   return (
     <ViewErrorBoundary viewId={id}>
-      <ViewContent id={id} profile={profile} session={session} />
+      <ViewContent id={id} profile={profile} session={session} onTabChange={onTabChange} />
     </ViewErrorBoundary>
   )
 }
@@ -274,7 +274,7 @@ export default function MainLayout({ profile, session }) {
               exit="exit"
               className="h-full overflow-hidden flex flex-col"
             >
-              <ViewComponent id={activeTab} profile={profile} session={session}/>
+              <ViewComponent id={activeTab} profile={profile} session={session} onTabChange={handleTabChange}/>
             </motion.div>
           </AnimatePresence>
         </main>

@@ -1,7 +1,7 @@
 import{useState,useRef,useEffect}from'react'
 import{motion,AnimatePresence}from'framer-motion'
 import{useNavigate}from'react-router-dom'
-import{Camera,Edit3,LogOut,Hash,FileText,Mail,GraduationCap,Save,X,Eye,Upload,AlertCircle,BadgeCheck,Activity,Clock,Zap,Shield,MoreVertical,Ban,Info,ChevronRight}from'lucide-react'
+import{Camera,Edit3,LogOut,Hash,FileText,Mail,GraduationCap,Save,X,Eye,Upload,AlertCircle,BadgeCheck,Activity,Clock,Zap,Shield,MoreVertical,Ban,Info,ChevronRight,Settings}from'lucide-react'
 import{supabase}from'../supabaseClient'
 
 function AvatarModal({profile,onClose,onAvatarChanged}){
@@ -317,7 +317,7 @@ function AboutModal({onClose}){
   )
 }
 
-export default function Profile({profile:initialProfile}){
+export default function Profile({profile:initialProfile, onTabChange}){
   const[profile,setProfile]=useState(initialProfile)
   const[authMeta,setAuthMeta]=useState(null)
   const[friendCount,setFriendCount]=useState(null)
@@ -527,6 +527,12 @@ export default function Profile({profile:initialProfile}){
           <motion.button onClick={()=>{setSigning(true);supabase.auth.signOut()}} disabled={signing} whileTap={{scale:0.97}}
             style={{display:'flex',alignItems:'center',justifyContent:'center',gap:'8px',padding:'13px',borderRadius:'14px',border:'1px solid rgba(239,68,68,0.3)',background:'rgba(239,68,68,0.07)',color:'#f87171',fontSize:'14px',fontWeight:600,cursor:'pointer',opacity:signing?0.6:1}}>
             <LogOut style={{width:15,height:15}}/> {signing?'Signing out…':'Sign Out'}
+          </motion.button>
+        )}
+        {!isEditing && onTabChange && (
+          <motion.button onClick={() => onTabChange('settings')} whileTap={{scale:0.97}} className="md:hidden"
+            style={{display:'flex',alignItems:'center',justifyContent:'center',gap:'8px',padding:'13px',borderRadius:'14px',border:'1px solid rgba(255,255,255,0.1)',background:'rgba(255,255,255,0.05)',color:'#94a3b8',fontSize:'14px',fontWeight:600,cursor:'pointer'}}>
+            <Settings style={{width:15,height:15}}/> Settings
           </motion.button>
         )}
       </div>
