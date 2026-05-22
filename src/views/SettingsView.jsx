@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { LogOut, Shield, Bell, Moon, Sun, Lock, UserX, X, AlertCircle, ChevronRight, CheckCircle2 } from 'lucide-react'
+import { LogOut, Shield, Bell, Moon, Sun, Lock, UserX, X, AlertCircle, ChevronRight, CheckCircle2, Activity, MoreVertical, RefreshCw, Trash2 } from 'lucide-react'
 import { supabase } from '../supabaseClient'
 import { useNavigate } from 'react-router-dom'
 
@@ -153,12 +153,150 @@ function DangerModal({ profile, onClose }) {
   )
 }
 
+function YourActivityModal({ profile, onClose }) {
+  const [tab, setTab] = useState('stories')
+  const [stories, setStories] = useState([])
+  const [posts, setPosts] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [menuId, setMenuId] = useState(null)
+
+  useEffect(() => {
+    async function load() {
+      setLoading(true)
+      
+      // Fetch soft-deleted or hidden posts
+      const { data: pData } = await supabase.from('posts').select('*').eq('user_id', profile.id).or('is_hidden.eq.true,is_deleted.eq.true').order('created_at', { ascending: false })
+      if(pData) setPosts(pData)
+
+      // Fetch stories: is_deleted = true OR expired (> 24 hours)
+      const { data: sData } = await supabase.from('stories').select('*').eq('user_id', profile.id).order('created_at', { ascending: false })
+      if(sData) {
+        const now = new Date()
+        const twentyFourHours = 24 * 60 * 60 * 1000
+        const filteredStories = sData.filter(s => {
+          const isExpired = (now - new Date(s.created_at)) > twentyFourHours
+          return s.is_deleted || isExpired
+        })
+        setStories(filteredStories)
+      }
+      setLoading(false)
+    }
+    load()
+  }, [profile.id])
+
+  const restorePost = async (id) => {
+    await supabase.from('posts').update({ is_hidden: false, is_deleted: false }).eq('id', id)
+    setPosts(prev => prev.filter(p => p.id !== id))
+    setMenuId(null)
+  }
+
+  const restoreStory = async (id) => {
+    await supabase.from('stories').update({ is_deleted: false }).eq('id', id)
+    setStories(prev => prev.filter(s => s.id !== id))
+    setMenuId(null)
+  }
+
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}
+      style={{ position: 'fixed', inset: 0, zIndex: 500, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+      <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }} onClick={e => e.stopPropagation()}
+        style={{ width: '100%', maxWidth: '420px', background: 'linear-gradient(180deg,#0f172a,#020617)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '24px', padding: '20px', display: 'flex', flexDirection: 'column', maxHeight: '80vh' }}>
+        
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+          <h3 style={{ fontSize: '18px', fontWeight: 700, color: '#f8fafc' }}>Your Activity</h3>
+          <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.07)', border: 'none', borderRadius: '8px', padding: '6px', cursor: 'pointer', color: '#94a3b8' }}><X style={{ width: 14, height: 14 }} /></button>
+        </div>
+
+        {/* Tabs */}
+        <div style={{ display: 'flex', background: 'rgba(255,255,255,0.03)', borderRadius: '12px', padding: '4px', marginBottom: '16px' }}>
+          {['stories', 'posts'].map(t => (
+            <button key={t} onClick={() => setTab(t)}
+              style={{ flex: 1, padding: '8px', borderRadius: '8px', border: 'none', background: tab === t ? 'rgba(255,255,255,0.1)' : 'transparent', color: tab === t ? '#fff' : '#64748b', fontSize: '13px', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s' }}>
+              {t === 'stories' ? 'Stories' : 'Posts'}
+            </button>
+          ))}
+        </div>
+
+        <div style={{ overflowY: 'auto', flex: 1, paddingRight: '4px' }}>
+          {loading && <p style={{ color: '#64748b', fontSize: '13px', textAlign: 'center', padding: '20px' }}>Loading…</p>}
+          
+          {/* Stories Tab */}
+          {!loading && tab === 'stories' && stories.length === 0 && <p style={{ color: '#64748b', fontSize: '13px', textAlign: 'center', padding: '20px' }}>No deleted or expired stories.</p>}
+          {!loading && tab === 'stories' && stories.map(s => {
+            const isExpired = (new Date() - new Date(s.created_at)) > 24 * 60 * 60 * 1000
+            return (
+              <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', borderRadius: '16px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)', marginBottom: '8px', position: 'relative' }}>
+                <div style={{ width: 44, height: 44, borderRadius: '10px', background: 'rgba(255,255,255,0.05)', overflow: 'hidden', flexShrink: 0 }}>
+                  {s.media_url ? (
+                    s.media_type === 'video' ? <video src={s.media_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <img src={s.media_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  ) : (
+                    <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', color: '#64748b' }}>No Media</div>
+                  )}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p style={{ fontSize: '14px', fontWeight: 600, color: '#f1f5f9' }}>{new Date(s.created_at).toLocaleDateString()}</p>
+                  <p style={{ fontSize: '12px', color: isExpired ? '#ef4444' : '#64748b', marginTop: '2px', fontWeight: isExpired ? 600 : 400 }}>{isExpired ? 'Expired' : 'Deleted'}</p>
+                </div>
+                
+                <div style={{ position: 'relative' }}>
+                  <button onClick={() => setMenuId(menuId === s.id ? null : s.id)} style={{ background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '4px' }}>
+                    <MoreVertical style={{ width: 16, height: 16 }} />
+                  </button>
+                  {menuId === s.id && (
+                    <div style={{ position: 'absolute', right: 0, top: '100%', background: '#1e293b', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', padding: '4px', zIndex: 10, minWidth: '120px', boxShadow: '0 4px 20px rgba(0,0,0,0.5)' }}>
+                      <button onClick={() => restoreStory(s.id)} disabled={isExpired} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', background: 'transparent', border: 'none', color: isExpired ? '#64748b' : '#38bdf8', fontSize: '13px', fontWeight: 500, cursor: isExpired ? 'not-allowed' : 'pointer', borderRadius: '8px' }}>
+                        <RefreshCw style={{ width: 14, height: 14 }} /> {isExpired ? 'Cannot Restore' : 'Move Out'}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+
+          {/* Posts Tab */}
+          {!loading && tab === 'posts' && posts.length === 0 && <p style={{ color: '#64748b', fontSize: '13px', textAlign: 'center', padding: '20px' }}>No hidden or deleted posts.</p>}
+          {!loading && tab === 'posts' && posts.map(p => (
+             <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', borderRadius: '16px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)', marginBottom: '8px', position: 'relative' }}>
+                <div style={{ width: 44, height: 44, borderRadius: '10px', background: 'rgba(255,255,255,0.05)', overflow: 'hidden', flexShrink: 0 }}>
+                  {p.media_url ? (
+                    p.media_type === 'video' ? <video src={p.media_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <img src={p.media_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  ) : (
+                    <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', color: '#64748b', padding: '2px', textAlign: 'center', overflow: 'hidden' }}>{p.content?.substring(0, 10)}...</div>
+                  )}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p style={{ fontSize: '13px', color: '#cbd5e1', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.content || "No caption"}</p>
+                  <p style={{ fontSize: '12px', color: p.is_deleted ? '#ef4444' : '#f59e0b', marginTop: '2px', fontWeight: 600 }}>{p.is_deleted ? 'Deleted' : 'Hidden'}</p>
+                </div>
+                
+                <div style={{ position: 'relative' }}>
+                  <button onClick={() => setMenuId(menuId === p.id ? null : p.id)} style={{ background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '4px' }}>
+                    <MoreVertical style={{ width: 16, height: 16 }} />
+                  </button>
+                  {menuId === p.id && (
+                    <div style={{ position: 'absolute', right: 0, top: '100%', background: '#1e293b', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', padding: '4px', zIndex: 10, minWidth: '120px', boxShadow: '0 4px 20px rgba(0,0,0,0.5)' }}>
+                      <button onClick={() => restorePost(p.id)} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', background: 'transparent', border: 'none', color: '#38bdf8', fontSize: '13px', fontWeight: 500, cursor: 'pointer', borderRadius: '8px' }}>
+                        <RefreshCw style={{ width: 14, height: 14 }} /> Move Out
+                      </button>
+                    </div>
+                  )}
+                </div>
+             </div>
+          ))}
+        </div>
+      </motion.div>
+    </motion.div>
+  )
+}
+
 export default function SettingsView({ profile, session }) {
   const navigate = useNavigate()
   const [toast, setToast] = useState(null)
   const [showPrivacy, setShowPrivacy] = useState(false)
   const [showNotif, setShowNotif] = useState(false)
   const [showDanger, setShowDanger] = useState(false)
+  const [showActivity, setShowActivity] = useState(false)
 
   // Appearance State
   const initialTheme = localStorage.getItem('onyx_theme') || 'dark'
@@ -218,6 +356,7 @@ export default function SettingsView({ profile, session }) {
   return (
     <div style={{ padding: '20px', maxWidth: '600px', margin: '0 auto', width: '100%', height: '100%', overflowY: 'auto' }}>
       <Section title="Account">
+        <SettingRow icon={Activity} title="Your Activity" subtitle="Manage deleted and hidden content" color="#38bdf8" onClick={() => setShowActivity(true)} />
         <SettingRow icon={Shield} title="Privacy & Security" subtitle="Manage blocked users and visibility" color="#34d399" onClick={() => setShowPrivacy(true)} />
         <SettingRow icon={Lock} title="Change Password" subtitle="Update your authentication method" color="#a78bfa" border={false} onClick={handleChangePassword} />
       </Section>
@@ -238,6 +377,7 @@ export default function SettingsView({ profile, session }) {
       </div>
 
       <AnimatePresence>
+        {showActivity && <YourActivityModal profile={profile} onClose={() => setShowActivity(false)} />}
         {showPrivacy && <PrivacyModal profile={profile} onClose={() => setShowPrivacy(false)} />}
         {showNotif && <NotificationsModal onClose={() => setShowNotif(false)} showToast={showMsg} />}
         {showDanger && <DangerModal profile={profile} onClose={() => setShowDanger(false)} />}

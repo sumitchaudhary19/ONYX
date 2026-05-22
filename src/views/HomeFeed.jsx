@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabaseClient'
 import { PostCard } from './Feed'
-import { Sparkles, Aperture, Eye, X, Play } from 'lucide-react'
+import { Sparkles, Aperture, Eye, X, Play, Trash2 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 
 function StoryViewsModal({ story, onClose }) {
@@ -62,8 +62,22 @@ function StoryViewsModal({ story, onClose }) {
   )
 }
 
-function OwnStoryModal({ story, onClose }) {
+function OwnStoryModal({ story, onClose, onDelete }) {
   const [showViews, setShowViews] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+
+  const handleDelete = async () => {
+    if(!window.confirm("Delete this story?")) return
+    setDeleting(true)
+    const { error } = await supabase.from('stories').update({ is_deleted: true }).eq('id', story.id)
+    setDeleting(false)
+    if (!error) {
+      if (onDelete) onDelete()
+      onClose()
+    } else {
+      alert("Failed to delete story")
+    }
+  }
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
@@ -71,10 +85,13 @@ function OwnStoryModal({ story, onClose }) {
       <div className="absolute top-0 left-0 right-0 p-4 z-20 flex justify-between items-center bg-gradient-to-b from-black/80 to-transparent">
         <div className="flex gap-1 flex-1 mr-4">
           <div className="h-1 bg-white/50 rounded-full flex-1 overflow-hidden">
-            <motion.div initial={{ width: 0 }} animate={{ width: '100%' }} transition={{ duration: 5 }} className="h-full bg-white" />
+            <motion.div initial={{ width: 0 }} animate={{ width: '100%' }} transition={{ duration: 5 }} onAnimationComplete={onClose} className="h-full bg-white" />
           </div>
         </div>
-        <button onClick={onClose} className="p-2 bg-black/40 rounded-full text-white backdrop-blur-md"><X className="w-5 h-5" /></button>
+        <div className="flex gap-2">
+          <button onClick={handleDelete} disabled={deleting} className="p-2 bg-black/40 rounded-full text-white backdrop-blur-md hover:bg-red-500/80 transition-colors"><Trash2 className="w-5 h-5" /></button>
+          <button onClick={onClose} className="p-2 bg-black/40 rounded-full text-white backdrop-blur-md"><X className="w-5 h-5" /></button>
+        </div>
       </div>
       
       <div className="flex-1 flex items-center justify-center relative overflow-hidden bg-[#0d0d0d]">
@@ -228,7 +245,7 @@ export default function HomeFeed({ profile }) {
 
       <AnimatePresence>
         {showStoryViewer && activeStory && (
-          <OwnStoryModal story={activeStory} onClose={() => setShowStoryViewer(false)} />
+          <OwnStoryModal story={activeStory} onClose={() => setShowStoryViewer(false)} onDelete={() => setActiveStory(null)} />
         )}
       </AnimatePresence>
     </div>

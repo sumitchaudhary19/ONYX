@@ -77,6 +77,7 @@ function NotificationsInner({ profile }) {
   const [groupReqs,  setGroupReqs ] = useState([])
   const [loading,    setLoading   ] = useState(true)
   const [acting,     setActing    ] = useState({})
+  const [pastNotifs, setPastNotifs] = useState([])
 
   useEffect(() => { 
     if(profile?.id) { 
@@ -88,8 +89,67 @@ function NotificationsInner({ profile }) {
   async function fetchAll() {
     setLoading(true)
     try {
-      await Promise.all([fetchFriendReqs(), fetchGroupReqs()])
+      await Promise.all([fetchFriendReqs(), fetchGroupReqs(), fetchPastNotifs()])
     } finally { setLoading(false) }
+  }
+
+  async function fetchPastNotifs() {
+    try {
+      const [ {data: frData}, {data: grData} ] = await Promise.all([
+        supabase.from('friend_requests').select('id,sender_id,receiver_id,status,created_at,updated_at').eq('status','accepted').or(`sender_id.eq.${profile.id},receiver_id.eq.${profile.id}`).order('updated_at',{ascending:false}).limit(15),
+        supabase.from('group_requests').select('id,group_id,sender_id,receiver_id,request_type,status,created_at,updated_at').eq('status','accepted').or(`sender_id.eq.${profile.id},receiver_id.eq.${profile.id}`).order('updated_at',{ascending:false}).limit(15)
+      ])
+
+      const past = []
+      
+      // Enrich FR
+      if(frData && frData.length > 0) {
+        const otherIds = frData.map(r => r.sender_id === profile.id ? r.receiver_id : r.sender_id)
+        const { data: profiles } = await supabase.from('profiles').select('id,first_name,last_name,username,avatar_url').in('id', otherIds)
+        const pMap = {}
+        ;(profiles||[]).forEach(p => pMap[p.id]=p)
+        
+        frData.forEach(r => {
+          const otherId = r.sender_id === profile.id ? r.receiver_id : r.sender_id
+          const other = pMap[otherId]
+          if(other) {
+            past.push({
+              id: 'pfr-'+r.id,
+              type: 'friend',
+              timestamp: r.updated_at || r.created_at,
+              message: r.sender_id === profile.id ? `${other.first_name} accepted your friend request.` : `You became friends with ${other.first_name}.`,
+              iconData: other
+            })
+          }
+        })
+      }
+
+      // Enrich GR
+      if(grData && grData.length > 0) {
+        const groupIds = [...new Set(grData.map(r=>r.group_id))]
+        const { data: groups } = await supabase.from('groups').select('id,name,avatar_url').in('id', groupIds)
+        const gMap = {}
+        ;(groups||[]).forEach(g => gMap[g.id]=g)
+
+        grData.forEach(r => {
+          const g = gMap[r.group_id]
+          if(g) {
+            past.push({
+              id: 'pgr-'+r.id,
+              type: 'group',
+              timestamp: r.updated_at || r.created_at,
+              message: r.request_type === 'join_request' && r.sender_id === profile.id ? `Your request to join ${g.name} was accepted.` : `You joined ${g.name}.`,
+              iconData: g
+            })
+          }
+        })
+      }
+
+      past.sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp))
+      setPastNotifs(past.slice(0, 20))
+    } catch(e) {
+      console.error('[Notif] fetchPast:', e)
+    }
   }
 
   async function fetchFriendReqs() {
@@ -199,16 +259,18 @@ function NotificationsInner({ profile }) {
       <div style={{flex:1,overflowY:'auto',padding:'0 12px 16px'}}>
         {loading && [1,2].map(i=><div key={i} className="skeleton" style={{height:'100px',marginBottom:'8px',borderRadius:'20px'}}/>)}
 
-        {!loading && total===0 && (
+        {!loading && total===0 && pastNotifs.length===0 && (
           <motion.div initial={{opacity:0,y:16}} animate={{opacity:1,y:0}}
             style={{display:'flex',flexDirection:'column',alignItems:'center',paddingTop:'80px',gap:'14px',textAlign:'center'}}>
             <div style={{width:72,height:72,borderRadius:'22px',background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.07)',display:'flex',alignItems:'center',justifyContent:'center'}}>
               <Inbox style={{width:30,height:30,color:'#334155'}}/>
             </div>
             <p style={{fontSize:'16px',fontWeight:600,color:'#475569'}}>All caught up!</p>
-            <p style={{fontSize:'13px',color:'#334155',lineHeight:1.5}}>No pending notifications right now.</p>
+            <p style={{fontSize:'13px',color:'#334155',lineHeight:1.5}}>No notifications yet.</p>
           </motion.div>
         )}
+
+        {!loading && total > 0 && <h3 style={{fontSize:'13px',fontWeight:700,color:'#60a5fa',marginBottom:'12px',textTransform:'uppercase',letterSpacing:'0.05em',paddingLeft:'4px'}}>New</h3>}
 
         <AnimatePresence mode="popLayout">
           {/* ── Friend Requests ── */}
@@ -257,6 +319,21 @@ function NotificationsInner({ profile }) {
             )
           })}
         </AnimatePresence>
+
+        {!loading && pastNotifs.length > 0 && (
+          <div style={{marginTop:'24px'}}>
+            <h3 style={{fontSize:'13px',fontWeight:700,color:'#475569',marginBottom:'12px',textTransform:'uppercase',letterSpacing:'0.05em',paddingLeft:'4px'}}>Earlier</h3>
+            {pastNotifs.map((n, i) => (
+              <div key={n.id} style={{display:'flex',alignItems:'center',gap:'12px',padding:'12px 16px',marginBottom:'8px',borderRadius:'16px',background:'rgba(255,255,255,0.01)',border:'1px solid rgba(255,255,255,0.03)',opacity:0.7}}>
+                {n.type === 'friend' ? <Avatar p={n.iconData} i={i} size={36}/> : <GroupIcon g={n.iconData} size={36}/>}
+                <div style={{flex:1,minWidth:0}}>
+                  <p style={{fontSize:'13px',color:'#cbd5e1',lineHeight:1.4}}>{n.message}</p>
+                  <p style={{fontSize:'11px',color:'#64748b',marginTop:2}}>{fmtTime(n.timestamp)}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
       <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>
     </div>

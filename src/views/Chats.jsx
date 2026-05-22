@@ -1,6 +1,157 @@
 import{useEffect,useState,useRef,useCallback}from'react'
 import{motion,AnimatePresence}from'framer-motion'
-import{MessageCircle,Users,Eye,EyeOff,Trash2,X}from'lucide-react'
+import{MessageCircle,Users,Eye,EyeOff,Trash2,X,Search,Clock}from'lucide-react'
+
+/* ── Chat Search Modal ── */
+function ChatSearchModal({ profile, onClose }) {
+  const navigate = useNavigate()
+  const [query, setQuery] = useState('')
+  const [recent, setRecent] = useState([])
+  const [results, setResults] = useState({ messages: [], groups: [], users: [] })
+  const [loading, setLoading] = useState(false)
+  const debounceRef = useRef(null)
+
+  useEffect(() => {
+    loadRecent()
+  }, [])
+
+  async function loadRecent() {
+    const { data } = await supabase.from('recent_searches').select('*').eq('user_id', profile.id).eq('search_type', 'chat').order('searched_at', { ascending: false }).limit(6)
+    if(data) setRecent(data)
+  }
+
+  const handleSearch = (e) => {
+    const q = e.target.value
+    setQuery(q)
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    if (!q.trim()) { setResults({ messages: [], groups: [], users: [] }); return }
+    debounceRef.current = setTimeout(() => {
+      runSearch(q.trim())
+      saveRecent(q.trim())
+    }, 400)
+  }
+
+  async function saveRecent(q) {
+    const { data } = await supabase.from('recent_searches').select('*').eq('user_id', profile.id).eq('search_type', 'chat').eq('query', q).single()
+    if(data) await supabase.from('recent_searches').update({ searched_at: new Date().toISOString() }).eq('id', data.id)
+    else await supabase.from('recent_searches').insert({ user_id: profile.id, search_type: 'chat', query: q })
+    loadRecent()
+  }
+
+  async function runSearch(q) {
+    setLoading(true)
+    try {
+      // Search Users
+      const { data: users } = await supabase.from('profiles').select('id, first_name, last_name, username, avatar_url').neq('id', profile.id).or(`username.ilike.%${q}%,first_name.ilike.%${q}%,last_name.ilike.%${q}%`).limit(5)
+      
+      // Search Groups
+      const { data: groups } = await supabase.from('groups').select('id, name, avatar_url').ilike('name', `%${q}%`).limit(5)
+      
+      // Search Messages
+      const { data: messages } = await supabase.from('messages').select('id, sender_id, receiver_id, content, created_at, group_id, profiles:sender_id(id, first_name, last_name)').ilike('content', `%${q}%`).or(`sender_id.eq.${profile.id},receiver_id.eq.${profile.id}`).limit(10)
+      
+      setResults({ users: users || [], groups: groups || [], messages: messages || [] })
+    } catch(e) { console.error(e) }
+    setLoading(false)
+  }
+
+  const Highlight = ({ text, highlight }) => {
+    if (!highlight.trim()) return <span>{text}</span>
+    const parts = text.split(new RegExp(`(${highlight})`, 'gi'))
+    return <span>{parts.map((p, i) => p.toLowerCase() === highlight.toLowerCase() ? <strong key={i} style={{ color: '#38bdf8', background: 'rgba(56,189,248,0.1)' }}>{p}</strong> : p)}</span>
+  }
+
+  return (
+    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }}
+      style={{ position: 'absolute', inset: 0, zIndex: 100, background: '#060b18', display: 'flex', flexDirection: 'column' }}>
+      
+      <div style={{ padding: '16px 20px', display: 'flex', alignItems: 'center', gap: '12px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+        <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.07)', border: 'none', borderRadius: '10px', padding: '8px', color: '#94a3b8', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+          <X style={{ width: 16, height: 16 }} />
+        </button>
+        <div style={{ flex: 1, position: 'relative' }}>
+          <div style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#64748b' }}>
+            <Search style={{ width: 16, height: 16 }} />
+          </div>
+          <input autoFocus type="text" value={query} onChange={handleSearch} placeholder="Search messages, users, or groups..."
+            style={{ width: '100%', padding: '10px 10px 10px 36px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(56,189,248,0.4)', borderRadius: '14px', color: '#fff', fontSize: '15px', outline: 'none', boxShadow: '0 0 16px rgba(56,189,248,0.15)' }} />
+        </div>
+      </div>
+
+      <div style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
+        {!query && recent.length > 0 && (
+          <div style={{ marginBottom: '24px' }}>
+            <h3 style={{ fontSize: '12px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: '12px' }}>Recent Searches</h3>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+              {recent.map(r => (
+                <button key={r.id} onClick={() => { setQuery(r.query); runSearch(r.query) }}
+                  style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', padding: '6px 12px', color: '#cbd5e1', fontSize: '13px', cursor: 'pointer' }}>
+                  <Clock style={{ width: 12, height: 12 }} /> {r.query}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {loading && <p style={{ color: '#64748b', textAlign: 'center', marginTop: '20px', fontSize: '14px' }}>Searching...</p>}
+        
+        {!loading && query && results.users.length === 0 && results.groups.length === 0 && results.messages.length === 0 && (
+          <p style={{ color: '#64748b', textAlign: 'center', marginTop: '40px', fontSize: '14px' }}>No results found for "{query}"</p>
+        )}
+
+        {!loading && query && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            {results.users.length > 0 && (
+              <div>
+                <h3 style={{ fontSize: '12px', fontWeight: 700, color: '#60a5fa', textTransform: 'uppercase', marginBottom: '8px' }}>People</h3>
+                {results.users.map(u => (
+                  <div key={u.id} onClick={() => navigate(`/chat/room/${u.id}`)} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px', borderRadius: '12px', background: 'rgba(255,255,255,0.02)', cursor: 'pointer', marginBottom: '4px' }}>
+                    {u.avatar_url ? <img src={u.avatar_url} style={{ width: 36, height: 36, borderRadius: '10px', objectFit: 'cover' }} /> : <div style={{ width: 36, height: 36, borderRadius: '10px', background: '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 'bold' }}>{u.first_name?.[0]}</div>}
+                    <div>
+                      <p style={{ fontSize: '14px', color: '#fff', fontWeight: 600 }}><Highlight text={[u.first_name, u.last_name].join(' ')} highlight={query} /></p>
+                      <p style={{ fontSize: '12px', color: '#64748b' }}>@{u.username}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {results.groups.length > 0 && (
+              <div>
+                <h3 style={{ fontSize: '12px', fontWeight: 700, color: '#a78bfa', textTransform: 'uppercase', marginBottom: '8px' }}>Groups</h3>
+                {results.groups.map(g => (
+                  <div key={g.id} onClick={() => navigate(`/group/${g.id}`)} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px', borderRadius: '12px', background: 'rgba(255,255,255,0.02)', cursor: 'pointer', marginBottom: '4px' }}>
+                    {g.avatar_url ? <img src={g.avatar_url} style={{ width: 36, height: 36, borderRadius: '10px', objectFit: 'cover' }} /> : <div style={{ width: 36, height: 36, borderRadius: '10px', background: '#8b5cf6', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 'bold' }}>{g.name?.[0]}</div>}
+                    <p style={{ fontSize: '14px', color: '#fff', fontWeight: 600 }}><Highlight text={g.name} highlight={query} /></p>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {results.messages.length > 0 && (
+              <div>
+                <h3 style={{ fontSize: '12px', fontWeight: 700, color: '#34d399', textTransform: 'uppercase', marginBottom: '8px' }}>Messages</h3>
+                {results.messages.map(m => {
+                  const targetId = m.group_id ? `/group/${m.group_id}` : `/chat/room/${m.sender_id === profile.id ? m.receiver_id : m.sender_id}`;
+                  return (
+                    <div key={m.id} onClick={() => navigate(targetId)} style={{ padding: '12px', borderRadius: '12px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)', cursor: 'pointer', marginBottom: '6px' }}>
+                      <p style={{ fontSize: '11px', color: '#64748b', marginBottom: '4px' }}>
+                        {m.profiles?.first_name} • {new Date(m.created_at).toLocaleDateString()}
+                      </p>
+                      <p style={{ fontSize: '13px', color: '#cbd5e1', lineHeight: 1.4 }}>
+                        <Highlight text={m.content} highlight={query} />
+                      </p>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </motion.div>
+  )
+}
 import{useNavigate}from'react-router-dom'
 import{supabase}from'../supabaseClient'
 import GroupsList from './GroupsList'
@@ -150,6 +301,7 @@ export default function Chats({profile}){
   const[hiddenIds,setHiddenIds]=useState(new Set())
   const[longPressed,setLongPressed]=useState(null)
   const[showHidden,setShowHidden]=useState(false)
+  const[showSearch,setShowSearch]=useState(false)
   const[onlineUsers,setOnlineUsers]=useState(new Set())
   const[unreadCounts,setUnreadCounts]=useState({})
   const[lastMessages,setLastMessages]=useState({})
@@ -333,6 +485,15 @@ export default function Chats({profile}){
           </motion.button>
         </div>
 
+        {/* ── Chat Search Bar ── */}
+        <div style={{ position: 'relative', marginBottom: '16px' }}>
+          <div style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#64748b', pointerEvents: 'none' }}>
+            <Search style={{ width: 15, height: 15 }} />
+          </div>
+          <input type="text" placeholder="Search chats, groups, messages..." onClick={() => setShowSearch(true)} readOnly
+            style={{ width: '100%', padding: '10px 10px 10px 36px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '14px', color: '#fff', fontSize: '14px', outline: 'none', cursor: 'pointer', transition: 'all 0.2s', boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.2)' }} />
+        </div>
+
         {/* Segmented Control */}
         <div style={{display:'flex',background:'rgba(255,255,255,0.05)',borderRadius:'12px',padding:'4px'}}>
           <button onClick={()=>setViewMode('dms')} style={{flex:1,padding:'8px',borderRadius:'8px',border:'none',background:viewMode==='dms'?'rgba(255,255,255,0.12)':'transparent',color:viewMode==='dms'?'#fff':'#94a3b8',fontSize:'13px',fontWeight:600,cursor:'pointer',transition:'all 0.2s'}}>Direct Messages</button>
@@ -438,6 +599,7 @@ export default function Chats({profile}){
 
       <AnimatePresence>
         {showHidden&&<HiddenChatsView profile={profile} onClose={()=>setShowHidden(false)}/>}
+        {showSearch&&<ChatSearchModal profile={profile} onClose={()=>setShowSearch(false)}/>}
       </AnimatePresence>
 
       <style>{`@keyframes pulse{0%,100%{opacity:.45}50%{opacity:.2}}`}</style>

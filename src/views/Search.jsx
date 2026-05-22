@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Search as SearchIcon, ChevronRight, X } from 'lucide-react'
+import { Search as SearchIcon, ChevronRight, X, Clock, Filter, Trash2 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
 
@@ -31,6 +31,9 @@ function Avatar({ user, size = 44, index = 0 }) {
 export default function SearchView({ profile }) {
   const navigate = useNavigate()
   const [query, setQuery]         = useState('')
+  const [recent, setRecent]       = useState([])
+  const [showYear, setShowYear]   = useState(false)
+  const [selectedYears, setSelectedYears] = useState([])
   const [allUsers, setAllUsers]   = useState([])   // full list loaded on mount
   const [results, setResults]     = useState([])   // currently shown list
   const [loading, setLoading]     = useState(true)
@@ -41,6 +44,7 @@ export default function SearchView({ profile }) {
   useEffect(() => {
     if (!profile?.id) return
     loadSuggestions()
+    loadRecentSearches()
   }, [profile?.id])
 
   async function loadSuggestions() {
@@ -67,6 +71,27 @@ export default function SearchView({ profile }) {
     }
   }
 
+  async function loadRecentSearches() {
+    const { data } = await supabase.from('recent_searches').select('*').eq('user_id', profile.id).eq('search_type', 'profile').order('searched_at', { ascending: false }).limit(8)
+    if(data) setRecent(data)
+  }
+
+  const removeRecent = async (e, id) => {
+    e.stopPropagation()
+    await supabase.from('recent_searches').delete().eq('id', id)
+    setRecent(prev => prev.filter(r => r.id !== id))
+  }
+
+  const clearAllRecent = async () => {
+    await supabase.from('recent_searches').delete().eq('user_id', profile.id).eq('search_type', 'profile')
+    setRecent([])
+  }
+
+  const handleRecentClick = (q) => {
+    setQuery(q)
+    runSearch(q, selectedYears)
+  }
+
   /* ── Debounced search handler ── */
   const handleSearch = (e) => {
     const q = e.target.value
@@ -81,18 +106,37 @@ export default function SearchView({ profile }) {
       return
     }
 
-    debounceRef.current = setTimeout(() => runSearch(q.trim()), 300)
+    debounceRef.current = setTimeout(() => {
+      runSearch(q.trim(), selectedYears)
+      saveRecentSearch(q.trim())
+    }, 400)
   }
 
-  async function runSearch(q) {
+  async function saveRecentSearch(q) {
+    if(!q) return
+    const { data } = await supabase.from('recent_searches').select('*').eq('user_id', profile.id).eq('search_type', 'profile').eq('query', q).single()
+    if(data) {
+      await supabase.from('recent_searches').update({ searched_at: new Date().toISOString() }).eq('id', data.id)
+    } else {
+      await supabase.from('recent_searches').insert({ user_id: profile.id, search_type: 'profile', query: q })
+    }
+    loadRecentSearches()
+  }
+
+  async function runSearch(q, years) {
     setSearching(true)
     try {
-      const { data, error } = await supabase
+      let req = supabase
         .from('profiles')
         .select('id, first_name, last_name, username, avatar_url, bio')
         .neq('id', profile.id)
         .or(`username.ilike.%${q}%,first_name.ilike.%${q}%,last_name.ilike.%${q}%`)
-        .limit(20)
+      
+      if (years && years.length > 0) {
+        req = req.in('btech_year', years)
+      }
+      
+      const { data, error } = await req.limit(20)
 
       if (error) {
         console.error('[Search] runSearch error:', error)
@@ -104,6 +148,12 @@ export default function SearchView({ profile }) {
     } finally {
       setSearching(false)
     }
+  }
+
+  const toggleYearFilter = (yr) => {
+    const next = selectedYears.includes(yr) ? selectedYears.filter(y => y !== yr) : [...selectedYears, yr]
+    setSelectedYears(next)
+    if (query.trim()) runSearch(query.trim(), next)
   }
 
   const clearSearch = () => {
@@ -159,6 +209,55 @@ export default function SearchView({ profile }) {
             </button>
           )}
         </div>
+
+        {/* Year Filter Toggle */}
+        <div style={{ marginTop: '12px' }}>
+          <button onClick={() => setShowYear(!showYear)}
+            style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', padding: '6px 12px', color: showYear || selectedYears.length > 0 ? '#60a5fa' : '#94a3b8', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}>
+            <Filter style={{ width: 14, height: 14 }} /> Filter by Year {selectedYears.length > 0 && `(${selectedYears.length})`}
+          </button>
+          
+          <AnimatePresence>
+            {showYear && (
+              <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} style={{ overflow: 'hidden' }}>
+                <div style={{ display: 'flex', gap: '8px', paddingTop: '10px', overflowX: 'auto', paddingBottom: '4px' }}>
+                  {['1st Year', '2nd Year', '3rd Year', '4th Year'].map(yr => (
+                    <button key={yr} onClick={() => toggleYearFilter(yr)}
+                      style={{ padding: '6px 12px', borderRadius: '12px', border: selectedYears.includes(yr) ? '1px solid rgba(96,165,250,0.5)' : '1px solid rgba(255,255,255,0.1)', background: selectedYears.includes(yr) ? 'rgba(96,165,250,0.1)' : 'rgba(255,255,255,0.03)', color: selectedYears.includes(yr) ? '#60a5fa' : '#cbd5e1', fontSize: '12px', fontWeight: 600, cursor: 'pointer', flexShrink: 0, boxShadow: selectedYears.includes(yr) ? '0 0 10px rgba(96,165,250,0.2)' : 'none' }}>
+                      {yr}
+                    </button>
+                  ))}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* Recent Searches */}
+        {!query && recent.length > 0 && (
+          <div style={{ marginTop: '16px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+              <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <Clock style={{ width: 12, height: 12 }} /> Recent
+              </span>
+              <button onClick={clearAllRecent} style={{ background: 'transparent', border: 'none', color: '#64748b', fontSize: '11px', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '2px' }}>
+                <Trash2 style={{ width: 11, height: 11 }} /> Clear
+              </button>
+            </div>
+            <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '8px' }}>
+              {recent.map(r => (
+                <div key={r.id} onClick={() => handleRecentClick(r.query)}
+                  style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '16px', padding: '6px 12px', cursor: 'pointer', flexShrink: 0 }}>
+                  <span style={{ fontSize: '12px', color: '#cbd5e1' }}>{r.query}</span>
+                  <button onClick={(e) => removeRecent(e, r.id)} style={{ background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '50%', padding: '2px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#94a3b8' }}>
+                    <X style={{ width: 10, height: 10 }} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
       </div>
 
       {/* ── Section label ── */}

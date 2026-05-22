@@ -14,6 +14,7 @@ import SnapCamera from '../views/SnapCamera'
 import ActionHubFAB from './ActionHubFAB'
 import CreatePostModal from './CreatePostModal'
 import CreateGroupModal from './CreateGroupModal'
+import StoryEditor from '../views/StoryEditor'
 import { supabase } from '../supabaseClient'
 
 /* ── Per-view Error Boundary ── */
@@ -102,6 +103,7 @@ export default function MainLayout({ profile, session }) {
   const [showSnap,     setShowSnap    ] = useState(false)
   const [showPost,     setShowPost    ] = useState(false)
   const [showGroup,    setShowGroup   ] = useState(false)
+  const [storyFile,    setStoryFile   ] = useState(null)
 
   useEffect(() => {
     if (!profile?.id) return
@@ -279,12 +281,13 @@ export default function MainLayout({ profile, session }) {
       </div>
 
       {/* Action Hub & Modals */}
-      <ActionHubFAB profile={profile} onSnap={() => setShowSnap(true)} onPost={() => setShowPost(true)} onNewGroup={() => setShowGroup(true)} />
+      <ActionHubFAB profile={profile} onSnap={() => setShowSnap(true)} onPost={() => setShowPost(true)} onNewGroup={() => setShowGroup(true)} onStorySelect={setStoryFile} />
 
       <AnimatePresence>
         {showSnap && <SnapCamera currentProfile={profile} onClose={() => setShowSnap(false)} />}
         {showPost && <CreatePostModal currentProfile={profile} onClose={() => setShowPost(false)} />}
         {showGroup && <CreateGroupModal profile={profile} onClose={() => setShowGroup(false)} />}
+        {storyFile && <StoryEditor profile={profile} file={storyFile} onClose={() => setStoryFile(null)} onComplete={() => setStoryFile(null)} />}
       </AnimatePresence>
     </div>
   )

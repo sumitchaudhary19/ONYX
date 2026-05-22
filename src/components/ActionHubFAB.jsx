@@ -3,9 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Plus, Camera, PenSquare, Users, Aperture, Loader2 } from 'lucide-react'
 import { supabase } from '../supabaseClient'
 
-export default function ActionHubFAB({ profile, onSnap, onPost, onNewGroup }) {
+export default function ActionHubFAB({ profile, onSnap, onPost, onNewGroup, onStorySelect }) {
   const [isOpen, setIsOpen] = useState(false)
-  const [uploading, setUploading] = useState(false)
   const fileInputRef = useRef(null)
 
   const toggle = () => setIsOpen(!isOpen)
@@ -15,38 +14,15 @@ export default function ActionHubFAB({ profile, onSnap, onPost, onNewGroup }) {
     fileInputRef.current?.click()
   }
 
-  const handleFileUpload = async (e) => {
+  const handleFileUpload = (e) => {
     const file = e.target.files?.[0]
     if (!file || !profile?.id) return
-
-    setUploading(true)
-    try {
-      const ext = file.name.split('.').pop()
-      const path = `${profile.id}/${Date.now()}.${ext}`
-      
-      const { error: uploadError } = await supabase.storage.from('onyx_stories').upload(path, file, { contentType: file.type })
-      if (uploadError) throw uploadError
-
-      const { data: { publicUrl } } = supabase.storage.from('onyx_stories').getPublicUrl(path)
-      
-      const mediaType = file.type.startsWith('video/') ? 'video' : 'image'
-      
-      const { error: insertError } = await supabase.from('stories').insert({
-        user_id: profile.id,
-        media_url: publicUrl,
-        media_type: mediaType
-      })
-
-      if (insertError) throw insertError
-      
-      // Optionally show a success toast here
-    } catch (err) {
-      console.error('Error uploading story:', err)
-      alert('Failed to upload story')
-    } finally {
-      setUploading(false)
-      if (fileInputRef.current) fileInputRef.current.value = ''
+    
+    if (onStorySelect) {
+      onStorySelect(file)
     }
+    
+    if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
   const actions = [
@@ -93,22 +69,18 @@ export default function ActionHubFAB({ profile, onSnap, onPost, onNewGroup }) {
         </AnimatePresence>
 
         <motion.button
-          whileTap={!uploading ? { scale: 0.9 } : {}}
-          onClick={uploading ? undefined : toggle}
-          className={`w-14 h-14 rounded-full flex items-center justify-center relative overflow-hidden ${uploading ? 'bg-slate-700 shadow-none' : 'bg-gradient-to-r from-blue-600 to-violet-600 shadow-[0_0_24px_rgba(124,58,237,0.6)]'}`}
+          whileTap={{ scale: 0.9 }}
+          onClick={toggle}
+          className="w-14 h-14 rounded-full flex items-center justify-center relative overflow-hidden bg-gradient-to-r from-blue-600 to-violet-600 shadow-[0_0_24px_rgba(124,58,237,0.6)]"
         >
-          {uploading ? (
-            <Loader2 className="w-7 h-7 text-white animate-spin z-10" />
-          ) : (
-            <motion.div
-              animate={{ rotate: isOpen ? 45 : 0 }}
-              transition={{ type: 'spring', stiffness: 300, damping: 20 }}
-              className="z-10"
-            >
-              <Plus className="w-8 h-8 text-white" />
-            </motion.div>
-          )}
-          {!uploading && <div className="absolute inset-0 bg-white/20 blur-md rounded-full" />}
+          <motion.div
+            animate={{ rotate: isOpen ? 45 : 0 }}
+            transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+            className="z-10"
+          >
+            <Plus className="w-8 h-8 text-white" />
+          </motion.div>
+          <div className="absolute inset-0 bg-white/20 blur-md rounded-full" />
         </motion.button>
       </div>
     </>

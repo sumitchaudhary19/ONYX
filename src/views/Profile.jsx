@@ -459,9 +459,8 @@ export default function Profile({profile:initialProfile}){
       </div>
 
       <div style={{padding:'8px 16px 32px',display:'flex',flexDirection:'column',gap:'12px',maxWidth:'600px',margin:'0 auto'}}>
-        <div style={{display:'flex',gap:'10px'}}>
+        <div style={{display:'grid',gridTemplateColumns:'repeat(2, 1fr)',gap:'10px'}}>
           <StatCard value={friendCount??'—'} label="Friends" color="#60a5fa" onClick={()=>setShowFriends(true)}/>
-          <StatCard value="—" label="Chats" color="#a78bfa"/>
           <StatCard value="—" label="Groups" color="#34d399"/>
         </div>
         <AnimatePresence>
