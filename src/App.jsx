@@ -63,6 +63,9 @@ export default function App() {
       setSession(session ?? null)
     })
 
+    // Background ephemeral cleanup
+    supabase.rpc('delete_expired_messages').catch(err => console.error('Cleanup error:', err))
+
     // 2. React to future auth events (login, logout, token refresh)
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session ?? null)

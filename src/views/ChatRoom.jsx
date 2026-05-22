@@ -4,6 +4,8 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { ArrowLeft, Check, CheckCheck, X, Reply, Forward, Edit3, Trash2, Pin, Shield, Lock } from 'lucide-react'
 import { supabase } from '../supabaseClient'
 import TypingBar from '../components/TypingBar'
+import { processMediaFile } from '../utils/mediaUtils'
+import { filterEphemeralMessages, getExpirationText } from '../utils/ephemeral'
 
 const GRADIENTS = ['linear-gradient(135deg,#3b82f6,#06b6d4)', 'linear-gradient(135deg,#8b5cf6,#ec4899)', 'linear-gradient(135deg,#10b981,#14b8a6)', 'linear-gradient(135deg,#f59e0b,#f97316)', 'linear-gradient(135deg,#ef4444,#f43f5e)', 'linear-gradient(135deg,#a855f7,#7c3aed)']
 
@@ -119,6 +121,14 @@ function Bubble({ msg, isMine, myId, onLongPress, replyMsg, navigate }) {
       <div className="flex items-center gap-1 mt-1 px-1">
         {msg?.is_pinned && <Pin className="w-[10px] h-[10px] text-amber-500" />}
         <span className="text-[10px] text-slate-500">{fmtTime(msg?.created_at)}</span>
+        {getExpirationText(msg) && (
+          <span className="text-[10px] text-red-400 font-medium ml-1 flex items-center gap-0.5">
+            <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            {getExpirationText(msg)}
+          </span>
+        )}
         {isMine && <ReceiptIcon msg={msg} myId={myId} />}
       </div>
     </motion.div>
@@ -226,6 +236,8 @@ export default function ChatRoom({ currentProfile }) {
   const [presenceCh, setPresenceCh] = useState(null)
   const [isBlocker, setIsBlocker] = useState(false)
   const [isFriend, setIsFriend] = useState(false)
+  const [hasMore, setHasMore] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
   
   const bottomRef = useRef(null)
   const myId = currentProfile?.id
@@ -256,9 +268,35 @@ export default function ChatRoom({ currentProfile }) {
     setLoading(true)
     supabase.from('messages').select('*')
       .or(`and(sender_id.eq.${myId},receiver_id.eq.${friendId}),and(sender_id.eq.${friendId},receiver_id.eq.${myId})`)
-      .order('created_at', { ascending: true })
-      .then(({ data }) => { setMessages(data || []); setLoading(false); setTimeout(scrollBottom, 80) })
+      .order('created_at', { ascending: false })
+      .limit(20)
+      .then(({ data }) => { 
+        const raw = (data || []).reverse()
+        const valid = filterEphemeralMessages(raw)
+        setMessages(valid)
+        setHasMore(raw.length >= 20)
+        setLoading(false)
+        setTimeout(scrollBottom, 80) 
+      })
   }, [myId, friendId, isFriend, scrollBottom])
+
+  const loadOlderMessages = async () => {
+    if (loadingMore || !hasMore || !messages.length) return
+    setLoadingMore(true)
+    try {
+      const oldest = messages[0]
+      const { data } = await supabase.from('messages').select('*')
+        .or(`and(sender_id.eq.${myId},receiver_id.eq.${friendId}),and(sender_id.eq.${friendId},receiver_id.eq.${myId})`)
+        .lt('created_at', oldest.created_at)
+        .order('created_at', { ascending: false })
+        .limit(20)
+      const raw = (data || []).reverse()
+      const valid = filterEphemeralMessages(raw)
+      if (valid.length < 20) setHasMore(false)
+      if (valid.length > 0) setMessages(prev => [...valid, ...prev])
+    } catch (e) { console.error('[ChatRoom] loadOlder:', e) }
+    finally { setLoadingMore(false) }
+  }
 
   useEffect(() => {
     if (!myId || !friendId || !isFriend) return
@@ -314,9 +352,12 @@ export default function ChatRoom({ currentProfile }) {
   const sendImage = async (caption = '') => {
     if (!imageFile) return
     try {
-      const ext = imageFile.name.split('.').pop()
+      const processedFile = await processMediaFile(imageFile, window.alert)
+      if (!processedFile) return
+
+      const ext = processedFile.name.split('.').pop()
       const path = `${myId}/${Date.now()}.${ext}`
-      await supabase.storage.from('chat_images').upload(path, imageFile, { contentType: imageFile.type })
+      await supabase.storage.from('chat_images').upload(path, processedFile, { contentType: processedFile.type })
       const { data: { publicUrl } } = supabase.storage.from('chat_images').getPublicUrl(path)
       const row = { sender_id: myId, receiver_id: friendId, content: caption, image_url: publicUrl }
       if (replyTo) row.reply_to = replyTo.id
@@ -406,6 +447,17 @@ export default function ChatRoom({ currentProfile }) {
               <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" className="opacity-25" /><path fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
             </svg>
           </div>
+        )}
+        {!loading && isFriend && hasMore && messages.length > 0 && (
+          <motion.button onClick={loadOlderMessages} disabled={loadingMore} whileTap={{ scale: 0.97 }}
+            className="w-full py-2 mb-3 rounded-xl bg-white/5 border border-white/10 text-slate-500 text-xs font-medium hover:bg-white/10 transition-colors flex items-center justify-center gap-2">
+            {loadingMore ? (
+              <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" className="opacity-25" />
+                <path fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+              </svg>
+            ) : '↑ Load older messages'}
+          </motion.button>
         )}
         {!loading && !isFriend && (
            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col items-center justify-center h-full gap-4 text-center pb-10 max-w-[280px] mx-auto">

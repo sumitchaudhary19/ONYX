@@ -306,6 +306,8 @@ export default function Chats({profile}){
   const[unreadCounts,setUnreadCounts]=useState({})
   const[lastMessages,setLastMessages]=useState({})
   const[typingFriends,setTypingFriends]=useState(new Set())
+  const[hasMore,setHasMore]=useState(true)
+  const[loadingMore,setLoadingMore]=useState(false)
   const navigate=useNavigate()
   const timerRef=useRef(null)
   const presenceChRef=useRef(null)
@@ -434,15 +436,55 @@ export default function Chats({profile}){
   async function fetchFriends(){
     setLoading(true)
     try{
-      const{data:requests,error:reqErr}=await supabase.from('friend_requests').select('id,sender_id,receiver_id').eq('status','accepted').or(`sender_id.eq.${profile.id},receiver_id.eq.${profile.id}`)
+      const{data:requests,error:reqErr}=await supabase.from('friend_requests').select('id,sender_id,receiver_id').eq('status','accepted').or(`sender_id.eq.${profile.id},receiver_id.eq.${profile.id}`).order('updated_at',{ascending:false}).limit(20)
       if(reqErr)throw reqErr
-      if(!requests?.length){setFriends([]);setLoading(false);return}
+      if(!requests?.length){setFriends([]);setHasMore(false);setLoading(false);return}
+      if(requests.length<20)setHasMore(false)
       const friendIds=[...new Set(requests.map(r=>r.sender_id===profile.id?r.receiver_id:r.sender_id))]
-      const{data:profiles,error:profErr}=await supabase.from('profiles').select('id,first_name,last_name,username,avatar_url,bio').in('id',friendIds)
+      const{data:profilesList,error:profErr}=await supabase.from('profiles').select('id,first_name,last_name,username,avatar_url,bio').in('id',friendIds)
       if(profErr)throw profErr
-      setFriends(profiles||[])
+      
+      // Preserve the order of friend_requests (most recently updated first)
+      const profMap={}
+      ;(profilesList||[]).forEach(p=>{profMap[p.id]=p})
+      const sortedProfiles=friendIds.map(id=>profMap[id]).filter(Boolean)
+      
+      setFriends(sortedProfiles)
     }catch(err){console.error('[Chats] fetchFriends:',err)}
     finally{setLoading(false)}
+  }
+
+  const loadMoreFriends=async()=>{
+    if(loadingMore||!hasMore)return
+    setLoadingMore(true)
+    try{
+      const{data:requests,error:reqErr}=await supabase.from('friend_requests')
+        .select('id,sender_id,receiver_id')
+        .eq('status','accepted')
+        .or(`sender_id.eq.${profile.id},receiver_id.eq.${profile.id}`)
+        .order('updated_at',{ascending:false})
+        .range(friends.length,friends.length+19)
+      
+      if(reqErr)throw reqErr
+      if(!requests?.length){setHasMore(false);setLoadingMore(false);return}
+      if(requests.length<20)setHasMore(false)
+      
+      const friendIds=[...new Set(requests.map(r=>r.sender_id===profile.id?r.receiver_id:r.sender_id))]
+      // Filter out ids we already have
+      const newIds=friendIds.filter(id=>!friends.find(f=>f.id===id))
+      
+      if(newIds.length>0){
+        const{data:profilesList,error:profErr}=await supabase.from('profiles').select('id,first_name,last_name,username,avatar_url,bio').in('id',newIds)
+        if(profErr)throw profErr
+        
+        const profMap={}
+        ;(profilesList||[]).forEach(p=>{profMap[p.id]=p})
+        const newProfiles=newIds.map(id=>profMap[id]).filter(Boolean)
+        
+        setFriends(prev=>[...prev,...newProfiles])
+      }
+    }catch(err){console.error('[Chats] loadMoreFriends:',err)}
+    finally{setLoadingMore(false)}
   }
 
   const hideChat=async(friend)=>{
@@ -580,6 +622,12 @@ export default function Chats({profile}){
                 )
               })}
             </AnimatePresence>
+            {!loading&&hasMore&&visibleFriends.length>0&&(
+              <motion.button onClick={loadMoreFriends} disabled={loadingMore} whileTap={{scale:0.97}}
+                style={{width:'100%',padding:'12px',marginTop:'8px',borderRadius:'20px',background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.08)',color:'#94a3b8',fontSize:'13px',fontWeight:600,cursor:'pointer'}}>
+                {loadingMore?'Loading…':'Load More'}
+              </motion.button>
+            )}
           </>
         )}
       </div>

@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X, Camera, Plus, Check, Upload } from 'lucide-react'
 import { supabase } from '../supabaseClient'
+import { processMediaFile } from '../utils/mediaUtils'
 
 const GRADS = ['linear-gradient(135deg,#3b82f6,#06b6d4)','linear-gradient(135deg,#8b5cf6,#ec4899)','linear-gradient(135deg,#10b981,#14b8a6)','linear-gradient(135deg,#f59e0b,#f97316)','linear-gradient(135deg,#a855f7,#7c3aed)']
 
@@ -53,9 +54,12 @@ export default function CreateGroupModal({ profile, onClose, onCreated }) {
       // 1. Upload avatar if selected
       let avatarUrl = null
       if (avatarFile) {
-        const ext  = avatarFile.name.split('.').pop()
+        const processedFile = await processMediaFile(avatarFile, setError)
+        if (!processedFile) { setLoading(false); return }
+
+        const ext  = processedFile.name.split('.').pop()
         const path = `${profile.id}/${Date.now()}-group.${ext}`
-        const { error:upErr } = await supabase.storage.from('group_avatars').upload(path, avatarFile, { contentType: avatarFile.type })
+        const { error:upErr } = await supabase.storage.from('group_avatars').upload(path, processedFile, { contentType: processedFile.type })
         if (upErr) throw upErr
         const { data: { publicUrl } } = supabase.storage.from('group_avatars').getPublicUrl(path)
         avatarUrl = publicUrl

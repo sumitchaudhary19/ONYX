@@ -5,6 +5,8 @@ import { ArrowLeft, X } from 'lucide-react'
 import { supabase } from '../supabaseClient'
 import GroupDetailsModal from '../components/GroupDetailsModal'
 import TypingBar from '../components/TypingBar'
+import { processMediaFile } from '../utils/mediaUtils'
+import { filterEphemeralMessages, getExpirationText } from '../utils/ephemeral'
 
 const GRADS = ['linear-gradient(135deg,#3b82f6,#06b6d4)', 'linear-gradient(135deg,#8b5cf6,#ec4899)', 'linear-gradient(135deg,#10b981,#14b8a6)', 'linear-gradient(135deg,#f59e0b,#f97316)', 'linear-gradient(135deg,#a855f7,#7c3aed)']
 
@@ -73,9 +75,19 @@ function Bubble({ msg, isMine, senderProfile }) {
           )}
         </>)
       }
-      <span className="text-[10px] text-slate-500 mt-1 px-1">
-        {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-      </span>
+      <div className="flex items-center gap-1 mt-1 px-1">
+        <span className="text-[10px] text-slate-500">
+          {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+        </span>
+        {getExpirationText(msg) && (
+          <span className="text-[10px] text-red-400 font-medium ml-1 flex items-center gap-0.5">
+            <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            {getExpirationText(msg)}
+          </span>
+        )}
+      </div>
     </motion.div>
   )
 }
@@ -108,6 +120,8 @@ export default function GroupChatRoom({ currentProfile }) {
   const [showDetails, setShowDetails] = useState(false)
   const [typers, setTypers] = useState({})
   const [presenceCh, setPresenceCh] = useState(null)
+  const [hasMore, setHasMore] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
   const bottomRef = useRef(null)
   const myId = currentProfile?.id
   const myName = currentProfile?.firstName || 'Someone'
@@ -121,10 +135,12 @@ export default function GroupChatRoom({ currentProfile }) {
   useEffect(() => {
     if (!groupId || !myId) return
     setLoading(true)
-    supabase.from('group_messages').select('*').eq('group_id', groupId).order('created_at', { ascending: true })
+    supabase.from('group_messages').select('*').eq('group_id', groupId).order('created_at', { ascending: false }).limit(20)
       .then(async ({ data }) => {
-        const msgs = data || []
+        const raw = (data || []).reverse()
+        const msgs = filterEphemeralMessages(raw)
         setMessages(msgs)
+        setHasMore(raw.length >= 20)
         const uids = [...new Set(msgs.map(m => m.sender_id))]
         if (uids.length) {
           const { data: profs } = await supabase.from('profiles').select('id,first_name,last_name,username,avatar_url').in('id', uids)
@@ -133,6 +149,32 @@ export default function GroupChatRoom({ currentProfile }) {
         setLoading(false); setTimeout(scroll, 80)
       })
   }, [groupId, myId])
+
+  const loadOlderMessages = async () => {
+    if (loadingMore || !hasMore || !messages.length) return
+    setLoadingMore(true)
+    try {
+      const oldest = messages[0]
+      const { data } = await supabase.from('group_messages').select('*')
+        .eq('group_id', groupId)
+        .lt('created_at', oldest.created_at)
+        .order('created_at', { ascending: false })
+        .limit(20)
+      const raw = (data || []).reverse()
+      const valid = filterEphemeralMessages(raw)
+      if (valid.length < 20) setHasMore(false)
+      if (valid.length > 0) {
+        setMessages(prev => [...valid, ...prev])
+        const newUids = [...new Set(valid.map(m => m.sender_id).filter(id => !profiles[id]))]
+        if (newUids.length) {
+          const { data: profs } = await supabase.from('profiles').select('id,first_name,last_name,username,avatar_url').in('id', newUids)
+          const map = {}; (profs || []).forEach(p => { map[p.id] = p })
+          setProfiles(prev => ({ ...prev, ...map }))
+        }
+      }
+    } catch (e) { console.error('[GCR] loadOlder:', e) }
+    finally { setLoadingMore(false) }
+  }
 
   useEffect(() => {
     if (!groupId || !myId) return
@@ -188,9 +230,11 @@ export default function GroupChatRoom({ currentProfile }) {
     if (!imageFile) return
     setUploading(true)
     try {
-      const ext = imageFile.name.split('.').pop()
+      const processedFile = await processMediaFile(imageFile, window.alert)
+      if (!processedFile) return
+      const ext = processedFile.name.split('.').pop()
       const path = `${myId}/${Date.now()}.${ext}`
-      await supabase.storage.from('chat_images').upload(path, imageFile, { contentType: imageFile.type })
+      await supabase.storage.from('chat_images').upload(path, processedFile, { contentType: processedFile.type })
       const { data: { publicUrl } } = supabase.storage.from('chat_images').getPublicUrl(path)
       await supabase.from('group_messages').insert({ group_id: groupId, sender_id: myId, content: text.trim(), image_url: publicUrl })
       setImageFile(null); setText('')
@@ -248,6 +292,17 @@ export default function GroupChatRoom({ currentProfile }) {
               <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" className="opacity-25" /><path fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
             </svg>
           </div>
+        )}
+        {!loading && hasMore && messages.length > 0 && (
+          <motion.button onClick={loadOlderMessages} disabled={loadingMore} whileTap={{ scale: 0.97 }}
+            className="w-full py-2 mb-3 rounded-xl bg-white/5 border border-white/10 text-slate-500 text-xs font-medium hover:bg-white/10 transition-colors flex items-center justify-center gap-2">
+            {loadingMore ? (
+              <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" className="opacity-25" />
+                <path fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+              </svg>
+            ) : '↑ Load older messages'}
+          </motion.button>
         )}
         {!loading && messages.length === 0 && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center justify-center h-full gap-3 text-center pb-10">

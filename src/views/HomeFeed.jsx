@@ -131,6 +131,8 @@ export default function HomeFeed({ profile }) {
   const [loading, setLoading] = useState(true)
   const [activeStory, setActiveStory] = useState(null)
   const [showStoryViewer, setShowStoryViewer] = useState(false)
+  const [hasMore, setHasMore] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
 
   useEffect(() => {
     const load = async () => {
@@ -161,13 +163,15 @@ export default function HomeFeed({ profile }) {
         .from('posts')
         .select('*,profiles:user_id(id,first_name,last_name,avatar_url)')
         .order('created_at', { ascending: false })
-        .limit(40)
+        .limit(20)
       
       if (!rawPosts || rawPosts.length === 0) { 
         setPosts([])
+        setHasMore(false)
         setLoading(false)
         return 
       }
+      if (rawPosts.length < 20) setHasMore(false)
 
       const ids = rawPosts.map(p => p.id)
       const [{ data: likes }, { data: commentCounts }] = await Promise.all([
@@ -190,6 +194,48 @@ export default function HomeFeed({ profile }) {
     }
     load()
   }, [profile?.id])
+
+  const loadMore = async () => {
+    if (loadingMore || !hasMore) return
+    setLoadingMore(true)
+    try {
+      const myId = profile?.id
+      const { data: rawPosts } = await supabase
+        .from('posts')
+        .select('*,profiles:user_id(id,first_name,last_name,avatar_url)')
+        .order('created_at', { ascending: false })
+        .range(posts.length, posts.length + 19)
+      
+      if (!rawPosts || rawPosts.length === 0) { 
+        setHasMore(false)
+        return 
+      }
+      if (rawPosts.length < 20) setHasMore(false)
+      
+      const ids = rawPosts.map(p => p.id)
+      const [{ data: likes }, { data: commentCounts }] = await Promise.all([
+        supabase.from('post_likes').select('post_id,user_id').in('post_id', ids),
+        supabase.from('post_comments').select('post_id').in('post_id', ids),
+      ])
+
+      const likeMap = {}; const cntMap = {}
+      ;(likes || []).forEach(l => { likeMap[l.post_id] = likeMap[l.post_id] || []; likeMap[l.post_id].push(l.user_id) })
+      ;(commentCounts || []).forEach(c => { cntMap[c.post_id] = (cntMap[c.post_id] || 0) + 1 })
+
+      const enriched = rawPosts.map(p => ({
+        ...p,
+        like_count: (likeMap[p.id] || []).length,
+        user_liked: (likeMap[p.id] || []).includes(myId),
+        comment_count: cntMap[p.id] ?? 0,
+      }))
+      
+      setPosts(prev => [...prev, ...enriched])
+    } catch (e) {
+      console.error('[HomeFeed] loadMore:', e)
+    } finally {
+      setLoadingMore(false)
+    }
+  }
 
   return (
     <div className="h-full flex flex-col overflow-hidden relative">
@@ -226,6 +272,22 @@ export default function HomeFeed({ profile }) {
           </div>
         )}
         {posts && posts.length > 0 && posts.map(p => <PostCard key={p.id} post={p} currentProfile={profile} />)}
+        
+        {hasMore && posts.length > 0 && (
+          <motion.button 
+            onClick={loadMore} 
+            disabled={loadingMore} 
+            whileTap={{ scale: 0.97 }}
+            className="w-full py-3 mt-4 rounded-2xl bg-white/5 border border-white/10 text-slate-400 text-sm font-semibold hover:bg-white/10 transition-colors flex items-center justify-center gap-2"
+          >
+            {loadingMore ? (
+              <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" className="opacity-25" />
+                <path fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+              </svg>
+            ) : 'Load More'}
+          </motion.button>
+        )}
       </div>
 
       {/* Own Story FAB */}

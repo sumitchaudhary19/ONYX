@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { X, Type, PenTool, AtSign, EyeOff, Save, Trash2, Send } from 'lucide-react'
 import Draggable from 'react-draggable'
 import { supabase } from '../supabaseClient'
+import { processMediaFile } from '../utils/mediaUtils'
 
 export default function StoryEditor({ profile, file, onClose, onComplete }) {
   const canvasRef = useRef(null)
@@ -135,9 +136,12 @@ export default function StoryEditor({ profile, file, onClose, onComplete }) {
       // Create final composite (pseudo approach: in a real app you'd draw the text/mentions to canvas too)
       // Here we just upload the original file since rendering React elements to canvas requires html2canvas
       
-      const ext = file.name.split('.').pop()
+      const processedFile = await processMediaFile(file, window.alert)
+      if (!processedFile) { setUploading(false); return }
+
+      const ext = processedFile.name.split('.').pop()
       const path = `${profile.id}/${Date.now()}.${ext}`
-      const { error: upErr } = await supabase.storage.from('onyx_posts').upload(path, file)
+      const { error: upErr } = await supabase.storage.from('onyx_posts').upload(path, processedFile)
       if(upErr) throw upErr
       const { data: { publicUrl } } = supabase.storage.from('onyx_posts').getPublicUrl(path)
       

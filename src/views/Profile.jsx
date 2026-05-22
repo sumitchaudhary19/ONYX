@@ -3,6 +3,7 @@ import{motion,AnimatePresence}from'framer-motion'
 import{useNavigate}from'react-router-dom'
 import{Camera,Edit3,LogOut,Hash,FileText,Mail,GraduationCap,Save,X,Eye,Upload,AlertCircle,BadgeCheck,Activity,Clock,Zap,Shield,MoreVertical,Ban,Info,ChevronRight,Settings}from'lucide-react'
 import{supabase}from'../supabaseClient'
+import{processMediaFile}from'../utils/mediaUtils'
 
 function AvatarModal({profile,onClose,onAvatarChanged}){
   const fileRef=useRef()
@@ -15,10 +16,13 @@ function AvatarModal({profile,onClose,onAvatarChanged}){
     if(file.size>5*1024*1024){setErr('Max 5 MB allowed.');return}
     setUploading(true);setErr(null)
     try{
+      const processedFile = await processMediaFile(file, setErr)
+      if (!processedFile) { setUploading(false); return }
+      
       const{data:{user}}=await supabase.auth.getUser()
-      const ext=file.name.split('.').pop().toLowerCase()
+      const ext=processedFile.name.split('.').pop().toLowerCase()
       const path=`${user.id}/${Date.now()}-avatar.${ext}`
-      const{error:upErr}=await supabase.storage.from('avatars').upload(path,file,{upsert:false,contentType:file.type})
+      const{error:upErr}=await supabase.storage.from('avatars').upload(path,processedFile,{upsert:false,contentType:processedFile.type})
       if(upErr)throw upErr
       const{data:{publicUrl}}=supabase.storage.from('avatars').getPublicUrl(path)
       const{error:dbErr}=await supabase.from('profiles').update({avatar_url:publicUrl}).eq('id',user.id)

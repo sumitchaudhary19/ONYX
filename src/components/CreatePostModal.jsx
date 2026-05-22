@@ -2,6 +2,7 @@ import { useState, useRef } from 'react'
 import { motion } from 'framer-motion'
 import { X, ImagePlus, Video } from 'lucide-react'
 import { supabase } from '../supabaseClient'
+import { processMediaFile } from '../utils/mediaUtils'
 
 export default function CreatePostModal({ currentProfile, onClose, onPosted }) {
   const fileRef = useRef()
@@ -20,9 +21,12 @@ export default function CreatePostModal({ currentProfile, onClose, onPosted }) {
     if (!file) { setError('Please select a photo or video.'); return }
     setUploading(true); setError(null)
     try {
-      const ext = file.name.split('.').pop()
+      const processedFile = await processMediaFile(file, setError)
+      if (!processedFile) { setUploading(false); return }
+
+      const ext = processedFile.name.split('.').pop()
       const path = `${currentProfile.id}/${Date.now()}.${ext}`
-      const { error: upErr } = await supabase.storage.from('onyx_posts').upload(path, file, { contentType: file.type })
+      const { error: upErr } = await supabase.storage.from('onyx_posts').upload(path, processedFile, { contentType: processedFile.type })
       if (upErr) throw upErr
       const { data: { publicUrl } } = supabase.storage.from('onyx_posts').getPublicUrl(path)
       const isVideo = file.type.startsWith('video/')

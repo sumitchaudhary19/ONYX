@@ -2,6 +2,7 @@ import { useState, useRef, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Send, Paperclip, Smile, Mic, X, Reply } from 'lucide-react'
 import { supabase } from '../supabaseClient'
+import { processMediaFile } from '../utils/mediaUtils'
 import EmojiPicker from 'emoji-picker-react'
 
 function throttle(fn, ms) {
@@ -78,10 +79,14 @@ export default function TypingBar({ text, setText, onSend, disabled, placeholder
     await new Promise(resolve => { ref.recorder.onstop = resolve; ref.recorder.stop() })
     mediaRef.current = null
     const blob = new Blob(chunksRef.current, { type: 'audio/webm' })
+    const file = new File([blob], 'audio.webm', { type: 'audio/webm' })
+    const processedFile = await processMediaFile(file, window.alert)
+    if (!processedFile) return
+
     setUploading(true)
     try {
       const path = `${myId}/${Date.now()}.webm`
-      const { error: upErr } = await supabase.storage.from('voice_notes').upload(path, blob, { contentType: 'audio/webm' })
+      const { error: upErr } = await supabase.storage.from('voice_notes').upload(path, processedFile, { contentType: 'audio/webm' })
       if (upErr) throw upErr
       const { data: { publicUrl } } = supabase.storage.from('voice_notes').getPublicUrl(path)
       onSend(null, publicUrl)

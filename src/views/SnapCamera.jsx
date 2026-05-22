@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X, Camera, FlipHorizontal, Video, Square, Send, Check, ChevronUp } from 'lucide-react'
 import { supabase } from '../supabaseClient'
+import { processMediaFile } from '../utils/mediaUtils'
 
 const GRADS = ['linear-gradient(135deg,#3b82f6,#06b6d4)','linear-gradient(135deg,#8b5cf6,#ec4899)','linear-gradient(135deg,#10b981,#14b8a6)','linear-gradient(135deg,#f59e0b,#f97316)','linear-gradient(135deg,#a855f7,#7c3aed)']
 
@@ -41,8 +42,12 @@ function SendToModal({ capturedBlob, capturedType, currentProfile, onClose }) {
     try {
       // Upload media
       const ext = capturedType === 'video' ? 'webm' : 'jpg'
+      const file = new File([capturedBlob], `snap.${ext}`, { type: capturedBlob.type })
+      const processedFile = await processMediaFile(file, window.alert)
+      if (!processedFile) { setSending(false); return }
+
       const path = `${currentProfile.id}/${Date.now()}.${ext}`
-      const { error: upErr } = await supabase.storage.from('onyx_snaps').upload(path, capturedBlob, { contentType: capturedBlob.type })
+      const { error: upErr } = await supabase.storage.from('onyx_snaps').upload(path, processedFile, { contentType: processedFile.type })
       if (upErr) throw upErr
       const { data: { publicUrl } } = supabase.storage.from('onyx_snaps').getPublicUrl(path)
 
