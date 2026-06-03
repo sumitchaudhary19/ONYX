@@ -37,11 +37,11 @@ async function compressImage(file, maxSizeMB = 1) {
 /* ── Upload image to Supabase Storage ── */
 async function uploadImage(file, sellerId) {
   const compressed = await compressImage(file)
-  const ext = compressed.name.split('.').pop()
+  const ext = (compressed.name || 'image.jpg').split('.').pop()
   const path = `${sellerId}/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`
   const { error } = await supabase.storage
     .from('marketplace')
-    .upload(path, compressed, { upsert: false })
+    .upload(path, compressed, { upsert: true })
   if (error) throw error
   const { data } = supabase.storage.from('marketplace').getPublicUrl(path)
   return data.publicUrl
@@ -73,17 +73,26 @@ function SellModal({ profile, onClose, onListed }) {
     setLoading(true)
     setError(null)
     try {
+      // Try uploading images — if bucket missing, gracefully skip photos
       let imageUrls = []
       if (images.length > 0) {
-        imageUrls = await Promise.all(images.map(img => uploadImage(img, profile.id)))
+        const results = await Promise.allSettled(images.map(img => uploadImage(img, profile.id)))
+        imageUrls = results
+          .filter(r => r.status === 'fulfilled')
+          .map(r => r.value)
+        // If ALL uploads failed, warn but still proceed with listing
+        const failed = results.filter(r => r.status === 'rejected')
+        if (failed.length > 0 && imageUrls.length === 0) {
+          setError('Photos could not be uploaded (storage not ready). Listing without photos.')
+        }
       }
       const { error: insertError } = await supabase.from('marketplace_items').insert({
-        seller_id:  profile.id,
-        title:      form.title.trim(),
+        seller_id:   profile.id,
+        title:       form.title.trim(),
         description: form.description.trim(),
-        price:      parseFloat(form.price),
-        category:   form.category,
-        image_urls: imageUrls,
+        price:       parseFloat(form.price),
+        category:    form.category,
+        image_urls:  imageUrls,
       })
       if (insertError) throw insertError
       onListed()
