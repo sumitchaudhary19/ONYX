@@ -1,11 +1,3 @@
-const https = require('https')
-
-const SUPABASE_URL = 'https://oaqxcckxvlvpwsvmotqo.supabase.co'
-// Using service role key from env - we only have the anon key so let's try the REST API via SQL endpoint
-// The anon key can't run raw SQL. Instead, let's use the Management API with personal token.
-// Since we don't have that, we'll output the SQL for the user to run manually.
-
-const sql = `
 -- ============================================================
 -- MNIT SHOP: marketplace_items table + RLS + storage bucket
 -- Run this in Supabase SQL Editor
@@ -25,18 +17,22 @@ CREATE TABLE IF NOT EXISTS public.marketplace_items (
 
 ALTER TABLE public.marketplace_items ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Anyone can view active listings" ON public.marketplace_items;
 CREATE POLICY "Anyone can view active listings"
   ON public.marketplace_items FOR SELECT
   USING (auth.role() = 'authenticated');
 
+DROP POLICY IF EXISTS "Sellers can insert their own items" ON public.marketplace_items;
 CREATE POLICY "Sellers can insert their own items"
   ON public.marketplace_items FOR INSERT
   WITH CHECK (auth.uid() = seller_id);
 
+DROP POLICY IF EXISTS "Sellers can update their own items" ON public.marketplace_items;
 CREATE POLICY "Sellers can update their own items"
   ON public.marketplace_items FOR UPDATE
   USING (auth.uid() = seller_id);
 
+DROP POLICY IF EXISTS "Sellers can delete their own items" ON public.marketplace_items;
 CREATE POLICY "Sellers can delete their own items"
   ON public.marketplace_items FOR DELETE
   USING (auth.uid() = seller_id);
@@ -45,13 +41,14 @@ CREATE POLICY "Sellers can delete their own items"
 INSERT INTO storage.buckets (id, name, public) VALUES ('marketplace', 'marketplace', true)
 ON CONFLICT (id) DO NOTHING;
 
-CREATE POLICY "Anyone can view marketplace images"
-  ON storage.objects FOR SELECT
-  USING (bucket_id = 'marketplace');
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='objects' AND schemaname='storage' AND policyname='Anyone can view marketplace images') THEN
+    CREATE POLICY "Anyone can view marketplace images" ON storage.objects FOR SELECT USING (bucket_id = 'marketplace');
+  END IF;
+END $$;
 
-CREATE POLICY "Authenticated users can upload marketplace images"
-  ON storage.objects FOR INSERT
-  WITH CHECK (bucket_id = 'marketplace' AND auth.role() = 'authenticated');
-`
-
-console.log(sql)
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='objects' AND schemaname='storage' AND policyname='Authenticated users can upload marketplace images') THEN
+    CREATE POLICY "Authenticated users can upload marketplace images" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'marketplace' AND auth.role() = 'authenticated');
+  END IF;
+END $$;

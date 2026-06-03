@@ -348,6 +348,7 @@ export default function Marketplace({ profile, onClose }) {
   const [filter, setFilter] = useState('All')
   const [showSell, setShowSell] = useState(false)
   const navigate = useNavigate()
+  const [toast, setToast] = useState(null)
 
   const fetchItems = useCallback(async () => {
     setLoading(true)
@@ -368,11 +369,34 @@ export default function Marketplace({ profile, onClose }) {
   useEffect(() => { fetchItems() }, [fetchItems])
 
   const handleMessageSeller = async (item) => {
+    // 1. Check if they are already friends
+    const { data: friendReq } = await supabase
+      .from('friend_requests')
+      .select('id, status')
+      .or(`and(sender_id.eq.${profile.id},receiver_id.eq.${item.seller_id}),and(sender_id.eq.${item.seller_id},receiver_id.eq.${profile.id})`)
+      .eq('status', 'accepted')
+      .single()
+
     const autoMsg = `Hey! I'm interested in buying your ${item.title} for ₹${parseFloat(item.price).toLocaleString('en-IN')}. Is it still available?`
-    // Store the auto-message in sessionStorage so ChatRoom can pick it up
-    sessionStorage.setItem('marketplace_intro_msg', autoMsg)
-    onClose()
-    navigate(`/chat/room/${item.seller_id}`)
+
+    if (friendReq) {
+      // Already friends: go straight to ChatRoom
+      sessionStorage.setItem('marketplace_intro_msg', autoMsg)
+      onClose()
+      navigate(`/chat/room/${item.seller_id}`)
+    } else {
+      // Not friends: insert into notifications table and show toast
+      await supabase.from('notifications').insert({
+        receiver_id: item.seller_id,
+        sender_id: profile.id,
+        type: 'marketplace_interest',
+        message: `${profile.first_name || 'Someone'} is interested to buy your ${item.title}.`,
+        metadata: { item_id: item.id, auto_msg: autoMsg }
+      })
+
+      setToast("Interest sent! The seller will be notified to connect with you.")
+      setTimeout(() => setToast(null), 4000)
+    }
   }
 
   const handleMarkSold = async (id) => {
@@ -490,8 +514,25 @@ export default function Marketplace({ profile, onClose }) {
 
       {/* Sell Modal */}
       <AnimatePresence>
-        {showSell && (
-          <SellModal profile={profile} onClose={() => setShowSell(false)} onListed={fetchItems} />
+        {showSell && <SellModal profile={profile} onClose={() => setShowSell(false)} onListed={fetchItems} />}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {toast && (
+          <motion.div
+            initial={{ opacity: 0, y: 50, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 20, scale: 0.9 }}
+            style={{
+              position: 'fixed', bottom: '40px', left: '50%', transform: 'translateX(-50%)',
+              background: 'rgba(16, 185, 129, 0.9)', color: '#fff',
+              padding: '12px 24px', borderRadius: '30px', fontSize: '14px', fontWeight: 600,
+              boxShadow: '0 8px 32px rgba(16, 185, 129, 0.4)', backdropFilter: 'blur(10px)',
+              zIndex: 9999, textAlign: 'center', minWidth: '300px'
+            }}
+          >
+            {toast}
+          </motion.div>
         )}
       </AnimatePresence>
 

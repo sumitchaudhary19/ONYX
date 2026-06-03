@@ -63,10 +63,10 @@ export default function ShopFAB({ profile }) {
             title="Campus Marketplace"
             style={{
               position: 'fixed',
-              bottom: 'calc(68px + 18px)',  /* above bottom nav */
+              bottom: 'calc(68px + 80px)',  /* Above the Create Post + button */
               right: '18px',
-              width: '54px',
-              height: '54px',
+              width: '56px',
+              height: '56px',
               borderRadius: '50%',
               border: '1px solid rgba(138, 43, 226, 0.4)',
               background: 'rgba(10, 6, 20, 0.85)',
@@ -79,11 +79,14 @@ export default function ShopFAB({ profile }) {
               animation: 'shopFabBreathing 2.5s ease-in-out infinite',
             }}
           >
-            <ShoppingBag
+            <img 
+              src="/3d-store.png" 
+              alt="Shop" 
               style={{
-                width: '22px', height: '22px',
-                color: '#c084fc',
-                filter: 'drop-shadow(0 0 6px rgba(192,132,252,0.8))'
+                width: '32px', 
+                height: '32px',
+                objectFit: 'contain',
+                filter: 'drop-shadow(0 4px 8px rgba(138,43,226,0.6))'
               }}
             />
           </motion.button>
