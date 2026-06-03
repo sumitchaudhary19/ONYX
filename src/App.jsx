@@ -60,7 +60,15 @@ export default function App() {
   useEffect(() => {
     // 1. Grab existing session immediately
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session ?? null)
+      if (window.__GUEST_TRANSITION__) return
+      const isGoogle = session?.user?.app_metadata?.provider === 'google'
+      if (session?.user && isGoogle && !session.user.email.endsWith('@mnit.ac.in')) {
+        supabase.auth.signOut()
+        localStorage.setItem('login_error', 'Access Denied: Only MNIT students (@mnit.ac.in) can log in.')
+        setSession(null)
+      } else {
+        setSession(session ?? null)
+      }
     })
 
     // Background ephemeral cleanup
@@ -69,9 +77,18 @@ export default function App() {
     })
 
     // 2. React to future auth events (login, logout, token refresh)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session ?? null)
-      if (!session) {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (window.__GUEST_TRANSITION__) return
+      const isGoogle = session?.user?.app_metadata?.provider === 'google'
+      if (session?.user && isGoogle && !session.user.email.endsWith('@mnit.ac.in')) {
+        await supabase.auth.signOut()
+        localStorage.setItem('login_error', 'Access Denied: Only MNIT students (@mnit.ac.in) can log in.')
+        setSession(null)
+      } else {
+        setSession(session ?? null)
+      }
+      
+      if (!session || (session?.user && isGoogle && !session.user.email.endsWith('@mnit.ac.in'))) {
         setProfile(null)
         setIsNewUser(false)
       }
