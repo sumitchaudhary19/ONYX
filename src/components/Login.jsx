@@ -58,10 +58,10 @@ export default function Login() {
     e.preventDefault()
     setLoading(true)
     setError(null)
-    window.__GUEST_TRANSITION__ = true // Prevent App.jsx from routing
+    window.__GUEST_TRANSITION__ = true
 
     try {
-      // Auto-generate a unique guest email so the user doesn't have to fill one out
+      // Auto-generate a unique guest email so Supabase auth is happy
       const safeUsername = guestForm.username.toLowerCase().replace(/[^a-z0-9]/g, '')
       const generatedEmail = `${safeUsername}_${Date.now()}@guest.onyx.local`
 
@@ -84,16 +84,6 @@ export default function Login() {
         if (profileError) {
           console.error('Failed to create guest profile', profileError)
         }
-      }
-
-      setShowGuestForm(false)
-      
-      // If email confirmation is enabled, session will be null. Alert the user.
-      if (!data?.session) {
-        window.__GUEST_TRANSITION__ = false
-        setError('Please check your email to confirm your account before logging in.')
-        setLoading(false)
-        return
       }
 
       // Directly move inside app
