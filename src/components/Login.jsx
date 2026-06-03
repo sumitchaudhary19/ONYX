@@ -204,6 +204,12 @@ export default function Login() {
               <button disabled={loading} type="submit" className="w-full mt-4 bg-blue-600 hover:bg-blue-500 text-white font-bold py-3.5 px-6 rounded-xl transition-colors shadow-lg shadow-blue-500/20 disabled:opacity-60 flex justify-center items-center gap-2">
                 {loading ? <svg className="animate-spin w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/></svg> : 'Create guest account'}
               </button>
+
+              {error && (
+                <div role="alert" className="mt-4 flex items-center justify-center gap-2 bg-red-500/20 border-2 border-red-500 text-red-200 text-sm font-bold rounded-xl px-4 py-3 shadow-[0_0_20px_rgba(239,68,68,0.5)] animate-slide-up">
+                  <span>⚠️</span><span>{error}</span>
+                </div>
+              )}
             </form>
           </div>
         </div>

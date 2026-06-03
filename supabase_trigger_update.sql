@@ -1,11 +1,15 @@
 -- ==============================================================================
 -- UPDATE TRIGGER: Enforce @mnit.ac.in for Google OAuth, Allow standard email 
 -- ==============================================================================
--- This script replaces the existing auth restriction trigger function.
--- It ensures that Google OAuth logins must use an @mnit.ac.in email, 
--- while allowing standard Email/Password signups (used by the new Guest Mode).
 
-CREATE OR REPLACE FUNCTION public.check_mnit_email()
+-- 1. First, let's make sure we drop the OLD trigger if it had a different name.
+-- (If you remember the exact name of your old trigger, replace 'check_mnit_email_trigger' below)
+DROP TRIGGER IF EXISTS check_mnit_email_trigger ON auth.users;
+DROP TRIGGER IF EXISTS ensure_mnit_email_trigger ON auth.users;
+DROP TRIGGER IF EXISTS mnit_email_filter ON auth.users;
+
+-- 2. Create the updated function
+CREATE OR REPLACE FUNCTION public.allow_guest_emails()
 RETURNS TRIGGER AS $$
 BEGIN
     -- Check if the provider is Google OAuth
@@ -16,14 +20,12 @@ BEGIN
         END IF;
     END IF;
 
-    -- If provider is 'email' (or anything else), we allow it to pass through
-    -- as we assume it's coming from our controlled Guest Registration form.
+    -- If provider is 'email', we allow it to pass through for Guests.
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- (Optional) If the trigger isn't named 'ensure_mnit_email_trigger', you can recreate it:
--- DROP TRIGGER IF EXISTS ensure_mnit_email_trigger ON auth.users;
--- CREATE TRIGGER ensure_mnit_email_trigger
--- BEFORE INSERT ON auth.users
--- FOR EACH ROW EXECUTE FUNCTION public.check_mnit_email();
+-- 3. Create the new trigger using the updated function
+CREATE TRIGGER enforce_mnit_domain_for_google
+BEFORE INSERT ON auth.users
+FOR EACH ROW EXECUTE FUNCTION public.allow_guest_emails();
