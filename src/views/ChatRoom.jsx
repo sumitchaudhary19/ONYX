@@ -244,6 +244,15 @@ export default function ChatRoom({ currentProfile }) {
   const myName = currentProfile?.firstName || 'Someone'
   const scrollBottom = useCallback(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [])
 
+  // Pre-populate message from marketplace "Message Seller" flow
+  useEffect(() => {
+    const marketplaceMsg = sessionStorage.getItem('marketplace_intro_msg')
+    if (marketplaceMsg) {
+      setText(marketplaceMsg)
+      sessionStorage.removeItem('marketplace_intro_msg')
+    }
+  }, [friendId])
+
   useEffect(() => {
     if (!friendId || !myId) return
     supabase.from('profiles').select('*').eq('id', friendId).single().then(({ data }) => { if (data) setFriend(data) })

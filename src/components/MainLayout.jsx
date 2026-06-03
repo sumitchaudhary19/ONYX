@@ -12,6 +12,7 @@ import SettingsView from '../views/SettingsView'
 import HomeFeed from '../views/HomeFeed'
 import SnapCamera from '../views/SnapCamera'
 import ActionHubFAB from './ActionHubFAB'
+import ShopFAB from './ShopFAB'
 import CreatePostModal from './CreatePostModal'
 import CreateGroupModal from './CreateGroupModal'
 import StoryEditor from '../views/StoryEditor'
@@ -282,6 +283,7 @@ export default function MainLayout({ profile, session }) {
 
       {/* Action Hub & Modals */}
       <ActionHubFAB profile={profile} onSnap={() => setShowSnap(true)} onPost={() => setShowPost(true)} onNewGroup={() => setShowGroup(true)} onStorySelect={setStoryFile} />
+      <ShopFAB profile={profile} />
 
       <AnimatePresence>
         {showSnap && <SnapCamera currentProfile={profile} onClose={() => setShowSnap(false)} />}
