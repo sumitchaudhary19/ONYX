@@ -13,7 +13,6 @@ export default function Login() {
   const [loading, setLoading] = useState(false)
   const [error,   setError  ] = useState(null)
   const [showGuestForm, setShowGuestForm] = useState(false)
-  const [showVideo, setShowVideo] = useState(false)
   
   const [guestForm, setGuestForm] = useState({
     firstName: '',
@@ -51,6 +50,11 @@ export default function Login() {
     }
   }
 
+  const handleVideoEnd = () => {
+    window.__GUEST_TRANSITION__ = false
+    window.location.href = '/chat' // Force reload to clear App.jsx state and pick up session
+  }
+
   const handleGuestSubmit = async (e) => {
     e.preventDefault()
     setLoading(true)
@@ -67,7 +71,7 @@ export default function Login() {
       
       if (data?.user) {
         // Insert profile immediately
-        const { error: profileError } = await supabase.from('profiles').insert({
+        const { error: profileError } = await supabase.from('profiles').upsert({
           id: data.user.id,
           first_name: guestForm.firstName,
           last_name: guestForm.lastName,
@@ -76,38 +80,26 @@ export default function Login() {
         })
         if (profileError) {
           console.error('Failed to create guest profile', profileError)
-          // Non-fatal, they can update it later, but we should log it.
         }
       }
 
       setShowGuestForm(false)
-      setShowVideo(true)
+      
+      // If email confirmation is enabled, session will be null. Alert the user.
+      if (!data?.session) {
+        window.__GUEST_TRANSITION__ = false
+        setError('Please check your email to confirm your account before logging in.')
+        setLoading(false)
+        return
+      }
+
+      // Directly move inside app
+      window.location.href = '/chat'
     } catch (err) {
       window.__GUEST_TRANSITION__ = false
       setError(err.message ?? 'Guest registration failed.')
       setLoading(false)
     }
-  }
-
-  const handleVideoEnd = () => {
-    window.__GUEST_TRANSITION__ = false
-    window.location.href = '/chat' // Force reload to clear App.jsx state and pick up session
-  }
-
-  if (showVideo) {
-    return (
-      <div className="fixed inset-0 z-[9999] bg-black flex items-center justify-center">
-        <video 
-          autoPlay 
-          muted 
-          playsInline
-          onEnded={handleVideoEnd}
-          className="w-full h-full object-cover"
-          src="/assets/guest-intro.mp4"
-          onError={handleVideoEnd} // Fallback if video fails to load
-        />
-      </div>
-    )
   }
 
   return (
