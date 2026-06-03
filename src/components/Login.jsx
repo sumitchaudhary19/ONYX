@@ -18,7 +18,6 @@ export default function Login() {
     firstName: '',
     lastName: '',
     username: '',
-    email: '',
     password: ''
   })
 
@@ -62,8 +61,12 @@ export default function Login() {
     window.__GUEST_TRANSITION__ = true // Prevent App.jsx from routing
 
     try {
+      // Auto-generate a unique guest email so the user doesn't have to fill one out
+      const safeUsername = guestForm.username.toLowerCase().replace(/[^a-z0-9]/g, '')
+      const generatedEmail = `${safeUsername}_${Date.now()}@guest.onyx.local`
+
       const { data, error: signUpError } = await supabase.auth.signUp({
-        email: guestForm.email,
+        email: generatedEmail,
         password: guestForm.password
       })
 
@@ -185,7 +188,6 @@ export default function Login() {
                 <input required type="text" placeholder="Last name" className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-slate-400 focus:outline-none focus:border-blue-500 transition-colors" value={guestForm.lastName} onChange={e => setGuestForm({...guestForm, lastName: e.target.value})} />
               </div>
               <input required type="text" placeholder="Username" className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-slate-400 focus:outline-none focus:border-blue-500 transition-colors" value={guestForm.username} onChange={e => setGuestForm({...guestForm, username: e.target.value})} />
-              <input required type="email" placeholder="Email address" className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-slate-400 focus:outline-none focus:border-blue-500 transition-colors" value={guestForm.email} onChange={e => setGuestForm({...guestForm, email: e.target.value})} />
               <input required type="password" placeholder="Password" className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-slate-400 focus:outline-none focus:border-blue-500 transition-colors" value={guestForm.password} onChange={e => setGuestForm({...guestForm, password: e.target.value})} />
               
               <div>
