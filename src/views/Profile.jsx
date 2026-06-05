@@ -459,6 +459,21 @@ export default function Profile({profile:initialProfile, onTabChange}){
           ):(
             <p style={{fontSize:'14px',color:'#64748b',marginTop:'4px'}}>@{profile?.username||'—'}</p>
           )}
+          {/* B.Tech Year Capsule Badge */}
+          {(profile?.btech_year || profile?.btechYear) && !isEditing && (
+            <div style={{
+              display:'inline-flex', alignItems:'center', gap:'5px',
+              marginTop:'8px', padding:'5px 14px', borderRadius:'20px',
+              background:'linear-gradient(135deg, rgba(245,158,11,0.12), rgba(251,191,36,0.08))',
+              border:'1px solid rgba(251,191,36,0.35)',
+              boxShadow:'0 0 14px rgba(251,191,36,0.15)',
+            }}>
+              <span style={{fontSize:'12px'}}>🎓</span>
+              <span style={{fontSize:'12px', fontWeight:700, color:'#fbbf24', letterSpacing:'0.03em'}}>
+                {profile.btech_year || profile.btechYear}
+              </span>
+            </div>
+          )}
         </div>
       </div>
 

@@ -192,7 +192,7 @@ export function PostCard({ post, currentProfile }) {
     const txt = commentText.trim(); if (!txt) return
     setCommentText('')
     const { data } = await supabase.from('post_comments').insert({ post_id: post.id, user_id: myId, content: txt }).select('id,content,created_at,user_id').single()
-    if (data) setComments(prev => [...prev, { ...data, profiles: { first_name: currentProfile.firstName, last_name: currentProfile.lastName, avatar_url: currentProfile.avatarUrl } }])
+    if (data) setComments(prev => [...prev, { ...data, profiles: { first_name: currentProfile.first_name || currentProfile.firstName, last_name: currentProfile.last_name || currentProfile.lastName, avatar_url: currentProfile.avatar_url || currentProfile.avatarUrl } }])
   }
 
   const authorName = [author?.first_name, author?.last_name].filter(Boolean).join(' ') || 'User'

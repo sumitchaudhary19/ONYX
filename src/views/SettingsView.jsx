@@ -116,10 +116,20 @@ function DangerModal({ profile, onClose }) {
     if (text !== 'DELETE') return
     setDeleting(true)
     try {
-      await supabase.from('profiles').delete().eq('id', profile.id)
+      // Call SECURITY DEFINER RPC that deletes from auth.users (cascades to profile + all data)
+      const { error } = await supabase.rpc('delete_user_account')
+      if (error) throw error
       await supabase.auth.signOut()
       navigate('/login')
-    } catch (e) { console.error('Delete error', e) }
+    } catch (e) {
+      console.error('Delete error', e)
+      // Fallback: try deleting profile directly
+      try {
+        await supabase.from('profiles').delete().eq('id', profile.id)
+        await supabase.auth.signOut()
+        navigate('/login')
+      } catch (e2) { console.error('Fallback delete error', e2) }
+    }
     setDeleting(false)
   }
 

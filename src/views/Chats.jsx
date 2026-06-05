@@ -610,7 +610,7 @@ export default function Chats({profile}){
                     </div>
                     {badge?(
                       <motion.div initial={{scale:0.5,opacity:0}} animate={{scale:1,opacity:1}}
-                        style={{flexShrink:0,padding:'5px 10px',borderRadius:'999px',background:'linear-gradient(135deg,#2563eb,#1d4ed8)',boxShadow:'0 0 14px rgba(37,99,235,0.55)',fontSize:'11px',fontWeight:700,color:'#fff',whiteSpace:'nowrap',textAlign:'center'}}>
+                        style={{flexShrink:0,padding:'5px 10px',borderRadius:'999px',background:'linear-gradient(135deg,#2563eb,#1d4ed8)',boxShadow:'0 0 14px rgba(37,99,235,0.55), 0 0 28px rgba(37,99,235,0.3)',fontSize:'11px',fontWeight:700,color:'#fff',whiteSpace:'nowrap',textAlign:'center',animation:'unreadGlow 2s ease-in-out infinite'}}>
                         {badge}
                       </motion.div>
                     ):(
@@ -650,7 +650,7 @@ export default function Chats({profile}){
         {showSearch&&<ChatSearchModal profile={profile} onClose={()=>setShowSearch(false)}/>}
       </AnimatePresence>
 
-      <style>{`@keyframes pulse{0%,100%{opacity:.45}50%{opacity:.2}}`}</style>
+      <style>{`@keyframes pulse{0%,100%{opacity:.45}50%{opacity:.2}} @keyframes unreadGlow{0%,100%{box-shadow:0 0 14px rgba(37,99,235,0.55),0 0 28px rgba(37,99,235,0.3)}50%{box-shadow:0 0 20px rgba(37,99,235,0.8),0 0 40px rgba(37,99,235,0.5)}}`}</style>
     </div>
   )
 }
