@@ -2,7 +2,7 @@ import { useEffect, useState, Component } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   MessageCircle, Search, Bell, User,
-  Users, Settings, ImagePlus, Aperture, Sparkles, BookOpen
+  Users, Settings, ImagePlus, Aperture, Sparkles, BookOpen, GraduationCap
 } from 'lucide-react'
 import Chats from '../views/Chats'
 import SearchView from '../views/Search'
@@ -17,6 +17,8 @@ import CreatePostModal from './CreatePostModal'
 import CreateGroupModal from './CreateGroupModal'
 import StoryEditor from '../views/StoryEditor'
 import Vault from '../views/Vault'
+import GuidanceHub from '../views/GuidanceHub'
+import ReadExperience from '../views/ReadExperience'
 import { supabase } from '../supabaseClient'
 
 /* ── Per-view Error Boundary ── */
@@ -47,9 +49,10 @@ class ViewErrorBoundary extends Component {
   }
 }
 
-function ViewContent({ id, profile, session, onTabChange }) {
+function ViewContent({ id, profile, session, onTabChange, onOpenPost }) {
   if (id === 'home')          return <HomeFeed          profile={profile} session={session} onTabChange={onTabChange}/>
   if (id === 'vault')         return <Vault             profile={profile} session={session} onTabChange={onTabChange}/>
+  if (id === 'guidance')      return <GuidanceHub       profile={profile} session={session} onTabChange={onTabChange} onOpenPost={onOpenPost}/>
   if (id === 'chats')         return <Chats             profile={profile} session={session} onTabChange={onTabChange}/>
   if (id === 'search')        return <SearchView        profile={profile} session={session} onTabChange={onTabChange}/>
   if (id === 'notifications') return <NotificationsView profile={profile} session={session} onTabChange={onTabChange}/>
@@ -58,20 +61,21 @@ function ViewContent({ id, profile, session, onTabChange }) {
   return null
 }
 
-function ViewComponent({ id, profile, session, onTabChange }) {
+function ViewComponent({ id, profile, session, onTabChange, onOpenPost }) {
   return (
     <ViewErrorBoundary viewId={id}>
-      <ViewContent id={id} profile={profile} session={session} onTabChange={onTabChange} />
+      <ViewContent id={id} profile={profile} session={session} onTabChange={onTabChange} onOpenPost={onOpenPost} />
     </ViewErrorBoundary>
   )
 }
 
 const TABS = [
-  { id: 'home',          label: 'Home',    Icon: Sparkles,     glow: 'blue' },
-  { id: 'vault',         label: 'Vault',   Icon: BookOpen,     glow: 'violet' },
-  { id: 'chats',         label: 'Chats',   Icon: MessageCircle },
-  { id: 'notifications', label: 'Alerts',  Icon: Bell          },
-  { id: 'profile',       label: 'Profile', Icon: User          },
+  { id: 'home',          label: 'Home',    Icon: Sparkles,      glow: 'blue' },
+  { id: 'vault',         label: 'Vault',   Icon: BookOpen,      glow: 'violet' },
+  { id: 'guidance',      label: 'Guide',   Icon: GraduationCap  },
+  { id: 'chats',         label: 'Chats',   Icon: MessageCircle  },
+  { id: 'notifications', label: 'Alerts',  Icon: Bell           },
+  { id: 'profile',       label: 'Profile', Icon: User           },
 ]
 
 const PAGE_VARIANTS = {
@@ -108,6 +112,7 @@ export default function MainLayout({ profile, session }) {
   const [showPost,     setShowPost    ] = useState(false)
   const [showGroup,    setShowGroup   ] = useState(false)
   const [storyFile,    setStoryFile   ] = useState(null)
+  const [readPost,     setReadPost    ] = useState(null)
 
   useEffect(() => {
     if (!profile?.id) return
@@ -278,7 +283,7 @@ export default function MainLayout({ profile, session }) {
               exit="exit"
               className="h-full overflow-hidden flex flex-col"
             >
-              <ViewComponent id={activeTab} profile={profile} session={session} onTabChange={handleTabChange}/>
+              <ViewComponent id={activeTab} profile={profile} session={session} onTabChange={handleTabChange} onOpenPost={setReadPost}/>
             </motion.div>
           </AnimatePresence>
         </main>
@@ -293,6 +298,7 @@ export default function MainLayout({ profile, session }) {
         {showPost && <CreatePostModal currentProfile={profile} onClose={() => setShowPost(false)} />}
         {showGroup && <CreateGroupModal profile={profile} onClose={() => setShowGroup(false)} />}
         {storyFile && <StoryEditor profile={profile} file={storyFile} onClose={() => setStoryFile(null)} onComplete={() => setStoryFile(null)} />}
+        {readPost && <ReadExperience post={readPost} profile={profile} onClose={() => setReadPost(null)} />}
       </AnimatePresence>
     </div>
   )

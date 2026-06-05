@@ -217,8 +217,21 @@ function NotificationsInner({ profile }) {
   const handleFriendAction = async (reqId, action) => {
     setActing(p=>({...p,[reqId]:action==='accepted'?'accepting':'declining'}))
     try {
+      const req = friendReqs.find(r => r.id === reqId)
       const {error}=await supabase.from('friend_requests').update({status:action}).eq('id',reqId)
       if(error) throw error
+
+      // When accepted, notify the sender so they know they can connect
+      if (action === 'accepted' && req?.sender_id) {
+        await supabase.from('notifications').insert({
+          receiver_id: req.sender_id,
+          sender_id: profile.id,
+          type: 'follow_accepted',
+          message: `${profile.first_name || profile.username || 'Someone'} accepted your follow request, now you can connect with them!`,
+          metadata: {}
+        }).catch(() => {}) // non-fatal
+      }
+
       setFriendReqs(p=>p.filter(r=>r.id!==reqId))
     } catch(e){ console.error('[Notif] friendAction:',e) }
     finally{ setActing(p=>{const n={...p};delete n[reqId];return n}) }
