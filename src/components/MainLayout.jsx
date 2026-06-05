@@ -19,6 +19,7 @@ import GuidanceHub from '../views/GuidanceHub'
 import ReadExperience from '../views/ReadExperience'
 import AnonymousAMA from '../views/AnonymousAMA'
 import DraggableSidebar from './DraggableSidebar'
+import Marketplace from '../views/Marketplace'
 import { supabase } from '../supabaseClient'
 
 /* ── Per-view Error Boundary ── */
@@ -112,7 +113,14 @@ export default function MainLayout({ profile, session }) {
   const [showGroup,    setShowGroup   ] = useState(false)
   const [storyFile,    setStoryFile   ] = useState(null)
   const [readPost,     setReadPost    ] = useState(null)
+  const [shopPhase,    setShopPhase   ] = useState('idle') // 'idle' | 'transition' | 'shop'
   const storyInputRef = useRef(null)
+
+  const openShop = () => {
+    if (shopPhase !== 'idle') return
+    setShopPhase('transition')
+    setTimeout(() => setShopPhase('shop'), 2000)
+  }
 
   useEffect(() => {
     if (!profile?.id) return
@@ -296,7 +304,7 @@ export default function MainLayout({ profile, session }) {
         onSnap={() => setShowSnap(true)}
         onStory={() => storyInputRef.current?.click()}
         onGroup={() => setShowGroup(true)}
-        onShop={() => handleTabChange('shop')}
+        onShop={openShop}
       />
       {/* Hidden file input for story uploads from sidebar */}
       <input ref={storyInputRef} type="file" accept="image/*,video/*" hidden onChange={e => { const f = e.target.files?.[0]; if (f) setStoryFile(f); if (storyInputRef.current) storyInputRef.current.value = '' }} />
@@ -307,6 +315,22 @@ export default function MainLayout({ profile, session }) {
         {showGroup && <CreateGroupModal profile={profile} onClose={() => setShowGroup(false)} />}
         {storyFile && <StoryEditor profile={profile} file={storyFile} onClose={() => setStoryFile(null)} onComplete={() => setStoryFile(null)} />}
         {readPost && <ReadExperience post={readPost} profile={profile} onClose={() => setReadPost(null)} />}
+      </AnimatePresence>
+
+      {/* ═══ MNIT SHOP CINEMATIC TRANSITION + MARKETPLACE ═══ */}
+      <AnimatePresence>
+        {shopPhase === 'transition' && (
+          <motion.div key="shop-transition" initial={{opacity:1}} exit={{opacity:0}} transition={{duration:0.6,ease:'easeInOut'}}
+            style={{position:'fixed',inset:0,zIndex:9000,background:'#ffffff',display:'flex',alignItems:'center',justifyContent:'center'}}>
+            <motion.p initial={{opacity:0,scale:0.8}} animate={{opacity:1,scale:1}} transition={{duration:0.45,ease:'easeOut'}}
+              style={{fontSize:'clamp(2.5rem,10vw,5rem)',fontWeight:900,color:'#000',letterSpacing:'-0.03em',fontFamily:"'Inter','Outfit',sans-serif",userSelect:'none'}}>
+              mnit shop
+            </motion.p>
+          </motion.div>
+        )}
+        {shopPhase === 'shop' && (
+          <Marketplace profile={profile} onClose={() => setShopPhase('idle')} />
+        )}
       </AnimatePresence>
     </div>
   )
