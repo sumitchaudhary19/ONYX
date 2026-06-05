@@ -1,4 +1,4 @@
-import { useEffect, useState, Component } from 'react'
+import { useEffect, useState, useRef, Component } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   MessageCircle, Search, Bell, User,
@@ -11,8 +11,6 @@ import NotificationsView from '../views/Notifications'
 import SettingsView from '../views/SettingsView'
 import HomeFeed from '../views/HomeFeed'
 import SnapCamera from '../views/SnapCamera'
-import ActionHubFAB from './ActionHubFAB'
-import ShopFAB from './ShopFAB'
 import CreatePostModal from './CreatePostModal'
 import CreateGroupModal from './CreateGroupModal'
 import StoryEditor from '../views/StoryEditor'
@@ -20,6 +18,7 @@ import Vault from '../views/Vault'
 import GuidanceHub from '../views/GuidanceHub'
 import ReadExperience from '../views/ReadExperience'
 import AnonymousAMA from '../views/AnonymousAMA'
+import DraggableSidebar from './DraggableSidebar'
 import { supabase } from '../supabaseClient'
 
 /* ── Per-view Error Boundary ── */
@@ -73,9 +72,6 @@ function ViewComponent({ id, profile, session, onTabChange, onOpenPost }) {
 
 const TABS = [
   { id: 'home',          label: 'Home',    Icon: Sparkles,      glow: 'blue' },
-  { id: 'vault',         label: 'Vault',   Icon: BookOpen,      glow: 'violet' },
-  { id: 'guidance',      label: 'Guide',   Icon: GraduationCap  },
-  { id: 'ama',           label: 'AMA',     Icon: Ghost          },
   { id: 'chats',         label: 'Chats',   Icon: MessageCircle  },
   { id: 'notifications', label: 'Alerts',  Icon: Bell           },
   { id: 'profile',       label: 'Profile', Icon: User           },
@@ -116,6 +112,7 @@ export default function MainLayout({ profile, session }) {
   const [showGroup,    setShowGroup   ] = useState(false)
   const [storyFile,    setStoryFile   ] = useState(null)
   const [readPost,     setReadPost    ] = useState(null)
+  const storyInputRef = useRef(null)
 
   useEffect(() => {
     if (!profile?.id) return
@@ -292,9 +289,17 @@ export default function MainLayout({ profile, session }) {
         </main>
       </div>
 
-      {/* Action Hub & Modals */}
-      <ActionHubFAB profile={profile} onSnap={() => setShowSnap(true)} onPost={() => setShowPost(true)} onNewGroup={() => setShowGroup(true)} onStorySelect={setStoryFile} />
-      <ShopFAB profile={profile} />
+      {/* ═══ DRAGGABLE SIDEBAR (replaces ActionHubFAB + ShopFAB) ═══ */}
+      <DraggableSidebar
+        onNavigate={handleTabChange}
+        onPost={() => setShowPost(true)}
+        onSnap={() => setShowSnap(true)}
+        onStory={() => storyInputRef.current?.click()}
+        onGroup={() => setShowGroup(true)}
+        onShop={() => handleTabChange('shop')}
+      />
+      {/* Hidden file input for story uploads from sidebar */}
+      <input ref={storyInputRef} type="file" accept="image/*,video/*" hidden onChange={e => { const f = e.target.files?.[0]; if (f) setStoryFile(f); if (storyInputRef.current) storyInputRef.current.value = '' }} />
 
       <AnimatePresence>
         {showSnap && <SnapCamera currentProfile={profile} onClose={() => setShowSnap(false)} />}
