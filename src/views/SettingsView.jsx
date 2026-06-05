@@ -118,17 +118,14 @@ function DangerModal({ profile, onClose }) {
     try {
       // Call SECURITY DEFINER RPC that deletes from auth.users (cascades to profile + all data)
       const { error } = await supabase.rpc('delete_user_account')
-      if (error) throw error
+      if (error) {
+        alert("⚠️ Action Failed: The Database RPC 'delete_user_account' is missing. Please run the provided bugfix_setup.sql in your Supabase SQL Editor to enable this feature.")
+        throw error
+      }
       await supabase.auth.signOut()
       navigate('/login')
     } catch (e) {
       console.error('Delete error', e)
-      // Fallback: try deleting profile directly
-      try {
-        await supabase.from('profiles').delete().eq('id', profile.id)
-        await supabase.auth.signOut()
-        navigate('/login')
-      } catch (e2) { console.error('Fallback delete error', e2) }
     }
     setDeleting(false)
   }

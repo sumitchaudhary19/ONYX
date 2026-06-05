@@ -218,7 +218,7 @@ function NotificationsInner({ profile }) {
     setActing(p=>({...p,[reqId]:action==='accepted'?'accepting':'declining'}))
     try {
       const req = friendReqs.find(r => r.id === reqId)
-      const {error}=await supabase.from('friend_requests').update({status:action}).eq('id',reqId)
+      const {error}=await supabase.from('friend_requests').update({status:action, updated_at: new Date().toISOString()}).eq('id',reqId)
       if(error) throw error
 
       // When accepted, notify the sender so they know they can connect

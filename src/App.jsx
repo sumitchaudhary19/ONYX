@@ -121,6 +121,7 @@ export default function App() {
           setProfile(null)
         } else {
           setProfile({
+            ...data, // Include all fields like btech_year, branch, hostel
             id:         data.id,
             firstName:  data.first_name,
             lastName:   data.last_name,

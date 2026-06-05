@@ -58,3 +58,7 @@ END $$;
 -- ============================================================
 -- Done! Post comments, account deletion RPC, and read_at ready.
 -- ============================================================
+
+-- ── 4. Ensure Realtime is enabled for critical tables ────────
+ALTER PUBLICATION supabase_realtime ADD TABLE public.friend_requests;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.messages;
