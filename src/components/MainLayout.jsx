@@ -2,7 +2,7 @@ import { useEffect, useState, Component } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   MessageCircle, Search, Bell, User,
-  Users, Settings, ImagePlus, Aperture, Sparkles, BookOpen, GraduationCap
+  Users, Settings, ImagePlus, Aperture, Sparkles, BookOpen, GraduationCap, Ghost
 } from 'lucide-react'
 import Chats from '../views/Chats'
 import SearchView from '../views/Search'
@@ -19,6 +19,7 @@ import StoryEditor from '../views/StoryEditor'
 import Vault from '../views/Vault'
 import GuidanceHub from '../views/GuidanceHub'
 import ReadExperience from '../views/ReadExperience'
+import AnonymousAMA from '../views/AnonymousAMA'
 import { supabase } from '../supabaseClient'
 
 /* ── Per-view Error Boundary ── */
@@ -53,6 +54,7 @@ function ViewContent({ id, profile, session, onTabChange, onOpenPost }) {
   if (id === 'home')          return <HomeFeed          profile={profile} session={session} onTabChange={onTabChange}/>
   if (id === 'vault')         return <Vault             profile={profile} session={session} onTabChange={onTabChange}/>
   if (id === 'guidance')      return <GuidanceHub       profile={profile} session={session} onTabChange={onTabChange} onOpenPost={onOpenPost}/>
+  if (id === 'ama')            return <AnonymousAMA      profile={profile} session={session} onTabChange={onTabChange}/>
   if (id === 'chats')         return <Chats             profile={profile} session={session} onTabChange={onTabChange}/>
   if (id === 'search')        return <SearchView        profile={profile} session={session} onTabChange={onTabChange}/>
   if (id === 'notifications') return <NotificationsView profile={profile} session={session} onTabChange={onTabChange}/>
@@ -73,6 +75,7 @@ const TABS = [
   { id: 'home',          label: 'Home',    Icon: Sparkles,      glow: 'blue' },
   { id: 'vault',         label: 'Vault',   Icon: BookOpen,      glow: 'violet' },
   { id: 'guidance',      label: 'Guide',   Icon: GraduationCap  },
+  { id: 'ama',           label: 'AMA',     Icon: Ghost          },
   { id: 'chats',         label: 'Chats',   Icon: MessageCircle  },
   { id: 'notifications', label: 'Alerts',  Icon: Bell           },
   { id: 'profile',       label: 'Profile', Icon: User           },
