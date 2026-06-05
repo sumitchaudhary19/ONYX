@@ -57,10 +57,7 @@ export default function Vault({ profile }) {
     try {
       let q = supabase
         .from('vault_links')
-        .select(`
-          *,
-          uploader_profile:profiles!vault_links_uploader_id_fkey(id, first_name, last_name, username, avatar_url)
-        `)
+        .select('*')
         .lt('reports_count', 3)
 
       if (yearFilter   !== 'All') q = q.eq('btech_year', yearFilter)
@@ -77,8 +74,25 @@ export default function Vault({ profile }) {
       const { data, error } = await q.limit(60)
       if (error) throw error
 
-      // Fetch user's votes on these items
       let enriched = data || []
+
+      // Fetch uploader profiles
+      if (enriched.length > 0) {
+        const uploaderIds = [...new Set(enriched.map(i => i.uploader_id))]
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('id, first_name, last_name, username, avatar_url')
+          .in('id', uploaderIds)
+
+        const profileMap = {}
+        ;(profiles || []).forEach(p => { profileMap[p.id] = p })
+        enriched = enriched.map(item => ({
+          ...item,
+          uploader_profile: profileMap[item.uploader_id] || null
+        }))
+      }
+
+      // Fetch user's votes on these items
       if (profile?.id && enriched.length > 0) {
         const itemIds = enriched.map(i => i.id)
         const { data: votes } = await supabase
