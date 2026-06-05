@@ -2,7 +2,7 @@ import { useEffect, useState, Component } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   MessageCircle, Search, Bell, User,
-  Users, Settings, ImagePlus, Aperture, Sparkles
+  Users, Settings, ImagePlus, Aperture, Sparkles, BookOpen
 } from 'lucide-react'
 import Chats from '../views/Chats'
 import SearchView from '../views/Search'
@@ -16,6 +16,7 @@ import ShopFAB from './ShopFAB'
 import CreatePostModal from './CreatePostModal'
 import CreateGroupModal from './CreateGroupModal'
 import StoryEditor from '../views/StoryEditor'
+import Vault from '../views/Vault'
 import { supabase } from '../supabaseClient'
 
 /* ── Per-view Error Boundary ── */
@@ -48,6 +49,7 @@ class ViewErrorBoundary extends Component {
 
 function ViewContent({ id, profile, session, onTabChange }) {
   if (id === 'home')          return <HomeFeed          profile={profile} session={session} onTabChange={onTabChange}/>
+  if (id === 'vault')         return <Vault             profile={profile} session={session} onTabChange={onTabChange}/>
   if (id === 'chats')         return <Chats             profile={profile} session={session} onTabChange={onTabChange}/>
   if (id === 'search')        return <SearchView        profile={profile} session={session} onTabChange={onTabChange}/>
   if (id === 'notifications') return <NotificationsView profile={profile} session={session} onTabChange={onTabChange}/>
@@ -66,6 +68,7 @@ function ViewComponent({ id, profile, session, onTabChange }) {
 
 const TABS = [
   { id: 'home',          label: 'Home',    Icon: Sparkles,     glow: 'blue' },
+  { id: 'vault',         label: 'Vault',   Icon: BookOpen,     glow: 'violet' },
   { id: 'chats',         label: 'Chats',   Icon: MessageCircle },
   { id: 'notifications', label: 'Alerts',  Icon: Bell          },
   { id: 'profile',       label: 'Profile', Icon: User          },
