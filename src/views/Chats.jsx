@@ -436,7 +436,7 @@ export default function Chats({profile}){
   async function fetchFriends(){
     setLoading(true)
     try{
-      const{data:requests,error:reqErr}=await supabase.from('friend_requests').select('id,sender_id,receiver_id').eq('status','accepted').or(`sender_id.eq.${profile.id},receiver_id.eq.${profile.id}`).order('updated_at',{ascending:false}).limit(20)
+      const{data:requests,error:reqErr}=await supabase.from('friend_requests').select('id,sender_id,receiver_id').eq('status','accepted').or(`sender_id.eq.${profile.id},receiver_id.eq.${profile.id}`).order('created_at',{ascending:false}).limit(20)
       if(reqErr)throw reqErr
       if(!requests?.length){setFriends([]);setHasMore(false);setLoading(false);return}
       if(requests.length<20)setHasMore(false)
@@ -462,7 +462,7 @@ export default function Chats({profile}){
         .select('id,sender_id,receiver_id')
         .eq('status','accepted')
         .or(`sender_id.eq.${profile.id},receiver_id.eq.${profile.id}`)
-        .order('updated_at',{ascending:false})
+        .order('created_at',{ascending:false})
         .range(friends.length,friends.length+19)
       
       if(reqErr)throw reqErr
