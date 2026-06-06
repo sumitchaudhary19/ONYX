@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { 
   Lightbulb, Briefcase, BookOpen, Plus, Search, X, 
   TrendingUp, Clock, Star, ChevronRight, Pen, Sparkles,
-  Award, Heart
+  Award, Heart, MoreVertical, Trash2
 } from 'lucide-react'
 import { supabase } from '../supabaseClient'
 
@@ -30,10 +30,12 @@ function fmtDate(ts) {
   return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
-function PostCard({ post, index, onClick }) {
+function PostCard({ post, index, onClick, profile, onEdit, onDelete }) {
+  const [showMenu, setShowMenu] = useState(false)
   const isTopContributor = (post.helpful_claps || 0) >= 50
   const name = [post.author?.first_name, post.author?.last_name].filter(Boolean).join(' ') || 'Anonymous'
   const snippet = post.content?.replace(/#{1,3}\s/g, '').substring(0, 140) + (post.content?.length > 140 ? '…' : '')
+  const isOwnPost = profile?.id === post.author_id
 
   return (
     <motion.div
@@ -90,7 +92,7 @@ function PostCard({ post, index, onClick }) {
 
       {/* Tags & Claps */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
-        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', flex: 1 }}>
           {(post.tags || []).slice(0, 3).map(tag => (
             <span key={tag} style={{
               padding: '3px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: 600,
@@ -98,9 +100,49 @@ function PostCard({ post, index, onClick }) {
             }}>{tag}</span>
           ))}
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '5px', color: '#64748b', fontSize: '12px', fontWeight: 600 }}>
-          <Lightbulb style={{ width: 13, height: 13, color: '#fbbf24' }} />
-          {post.helpful_claps || 0} helpful
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '5px', color: '#64748b', fontSize: '12px', fontWeight: 600 }}>
+            <Lightbulb style={{ width: 13, height: 13, color: '#fbbf24' }} />
+            {post.helpful_claps || 0} helpful
+          </div>
+          
+          {isOwnPost && (
+            <div style={{ position: 'relative' }}>
+              <button 
+                onClick={(e) => { e.stopPropagation(); setShowMenu(!showMenu) }}
+                style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', display: 'flex', padding: '4px' }}
+              >
+                <MoreVertical style={{ width: 16, height: 16 }} />
+              </button>
+              
+              <AnimatePresence>
+                {showMenu && (
+                  <>
+                    <div style={{ position: 'fixed', inset: 0, zIndex: 9 }} onClick={(e) => { e.stopPropagation(); setShowMenu(false) }} />
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.9, y: 10 }}
+                      animate={{ opacity: 1, scale: 1, y: 0 }}
+                      exit={{ opacity: 0, scale: 0.9, y: 10 }}
+                      style={{
+                        position: 'absolute', bottom: '100%', right: 0, marginBottom: '8px',
+                        background: 'rgba(15,23,42,0.95)', backdropFilter: 'blur(16px)',
+                        border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px',
+                        padding: '6px', minWidth: '120px', zIndex: 10,
+                        boxShadow: '0 10px 30px rgba(0,0,0,0.5)'
+                      }}
+                    >
+                      <button onClick={(e) => { e.stopPropagation(); setShowMenu(false); onEdit(post) }} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 12px', background: 'transparent', border: 'none', color: '#e2e8f0', fontSize: '13px', fontWeight: 600, cursor: 'pointer', borderRadius: '8px', textAlign: 'left' }}>
+                        <Pen style={{ width: 14, height: 14 }} /> Edit
+                      </button>
+                      <button onClick={(e) => { e.stopPropagation(); setShowMenu(false); onDelete(post) }} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 12px', background: 'transparent', border: 'none', color: '#ef4444', fontSize: '13px', fontWeight: 600, cursor: 'pointer', borderRadius: '8px', textAlign: 'left' }}>
+                        <Trash2 style={{ width: 14, height: 14 }} /> Delete
+                      </button>
+                    </motion.div>
+                  </>
+                )}
+              </AnimatePresence>
+            </div>
+          )}
         </div>
       </div>
     </motion.div>
@@ -128,12 +170,12 @@ function SkeletonCard() {
 }
 
 /* ── Write Post Modal ── */
-function WritePostModal({ profile, onClose, onPublished }) {
-  const [tab, setTab] = useState('career')
-  const [title, setTitle] = useState('')
-  const [content, setContent] = useState('')
+function WritePostModal({ profile, editPost, onClose, onPublished }) {
+  const [tab, setTab] = useState(editPost ? editPost.tab_type : 'career')
+  const [title, setTitle] = useState(editPost ? editPost.title : '')
+  const [content, setContent] = useState(editPost ? editPost.content : '')
   const [tagInput, setTagInput] = useState('')
-  const [tags, setTags] = useState([])
+  const [tags, setTags] = useState(editPost ? editPost.tags || [] : [])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
 
@@ -169,14 +211,27 @@ Books, videos, or courses that helped you.`
     if (!title.trim()) return
     setSaving(true); setError(null)
     try {
-      const { error: err } = await supabase.from('guidance_posts').insert({
-        author_id: profile.id,
-        tab_type: tab,
-        title: title.trim(),
-        content: content.trim(),
-        tags,
-        is_draft: isDraft,
-      })
+      let err;
+      if (editPost) {
+        const res = await supabase.from('guidance_posts').update({
+          tab_type: tab,
+          title: title.trim(),
+          content: content.trim(),
+          tags,
+          is_draft: isDraft,
+        }).eq('id', editPost.id)
+        err = res.error
+      } else {
+        const res = await supabase.from('guidance_posts').insert({
+          author_id: profile.id,
+          tab_type: tab,
+          title: title.trim(),
+          content: content.trim(),
+          tags,
+          is_draft: isDraft,
+        })
+        err = res.error
+      }
       if (err) throw err
       onPublished(isDraft)
       onClose()
@@ -217,7 +272,7 @@ Books, videos, or courses that helped you.`
               <div style={{ width: 36, height: 36, borderRadius: '12px', background: 'linear-gradient(135deg, rgba(99,102,241,0.3), rgba(124,58,237,0.2))', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <Pen style={{ width: 16, height: 16, color: '#818cf8' }} />
               </div>
-              <h2 style={{ fontSize: '18px', fontWeight: 700, color: '#f0f4ff', margin: 0 }}>Share Your Experience</h2>
+              <h2 style={{ fontSize: '18px', fontWeight: 700, color: '#f0f4ff', margin: 0 }}>{editPost ? 'Edit Experience' : 'Share Your Experience'}</h2>
             </div>
             <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.07)', border: 'none', borderRadius: '10px', width: 34, height: 34, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#64748b' }}>
               <X style={{ width: 16, height: 16 }} />
@@ -298,7 +353,7 @@ Books, videos, or courses that helped you.`
             opacity: (title.trim() && content.trim()) ? 1 : 0.5,
             boxShadow: '0 4px 20px rgba(79,70,229,0.5)',
           }}>
-            {saving ? 'Publishing…' : '✦ Publish Post'}
+            {saving ? (editPost ? 'Saving…' : 'Publishing…') : (editPost ? 'Save Changes' : '✦ Publish Post')}
           </button>
         </div>
       </motion.div>
@@ -314,6 +369,7 @@ export default function GuidanceHub({ profile, onOpenPost }) {
   const [activeTag, setActiveTag] = useState(null)
   const [searchQ, setSearchQ] = useState('')
   const [showWrite, setShowWrite] = useState(false)
+  const [editPost, setEditPost] = useState(null)
   const [toast, setToast] = useState(null)
 
   const fetchPosts = useCallback(async () => {
@@ -363,6 +419,25 @@ export default function GuidanceHub({ profile, onOpenPost }) {
     setTimeout(() => setToast(null), 3500)
   }
 
+  const handleEditPost = (post) => {
+    setEditPost(post)
+    setShowWrite(true)
+  }
+
+  const handleDeletePost = async (post) => {
+    if (window.confirm("Are you sure you want to delete this experience?")) {
+      setPosts(prev => prev.filter(p => p.id !== post.id))
+      try {
+        const { error } = await supabase.from('guidance_posts').delete().eq('id', post.id)
+        if (error) throw error
+        showToast("Experience deleted successfully")
+      } catch (err) {
+        console.error("Delete failed", err)
+        fetchPosts() // revert
+      }
+    }
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
 
@@ -386,14 +461,14 @@ export default function GuidanceHub({ profile, onOpenPost }) {
               <p style={{ fontSize: '11px', color: '#64748b', margin: 0, fontWeight: 600 }}>Learn from seniors who've been there</p>
             </div>
           </div>
-          <motion.button whileTap={{ scale: 0.9 }} onClick={() => setShowWrite(true)}
+          <motion.button whileTap={{ scale: 0.9 }} onClick={() => { setEditPost(null); setShowWrite(true); }}
             style={{
               width: 42, height: 42, borderRadius: '14px',
               background: 'linear-gradient(135deg, #4f46e5, #7c3aed)',
               border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center',
               cursor: 'pointer', boxShadow: '0 4px 20px rgba(79,70,229,0.5)',
             }}>
-            <Pen style={{ width: 18, height: 18, color: '#fff' }} />
+            <Plus style={{ width: 18, height: 18, color: '#fff' }} />
           </motion.button>
         </div>
 
@@ -477,7 +552,7 @@ export default function GuidanceHub({ profile, onOpenPost }) {
             <p style={{ fontSize: '13px', color: '#475569', lineHeight: 1.5, maxWidth: '280px' }}>
               Be the first to share your experience with juniors!
             </p>
-            <motion.button whileTap={{ scale: 0.95 }} onClick={() => setShowWrite(true)}
+            <motion.button whileTap={{ scale: 0.95 }} onClick={() => { setEditPost(null); setShowWrite(true); }}
               style={{ padding: '12px 28px', borderRadius: '14px', background: 'linear-gradient(135deg, #4f46e5, #7c3aed)', border: 'none', color: '#fff', fontSize: '14px', fontWeight: 700, cursor: 'pointer', boxShadow: '0 4px 20px rgba(79,70,229,0.4)' }}>
               Write First Post
             </motion.button>
@@ -487,7 +562,7 @@ export default function GuidanceHub({ profile, onOpenPost }) {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <AnimatePresence mode="popLayout">
               {posts.map((post, i) => (
-                <PostCard key={post.id} post={post} index={i} onClick={onOpenPost} />
+                <PostCard key={post.id} post={post} index={i} onClick={onOpenPost} profile={profile} onEdit={handleEditPost} onDelete={handleDeletePost} />
               ))}
             </AnimatePresence>
           </div>
@@ -499,9 +574,10 @@ export default function GuidanceHub({ profile, onOpenPost }) {
         {showWrite && (
           <WritePostModal
             profile={profile}
-            onClose={() => setShowWrite(false)}
+            editPost={editPost}
+            onClose={() => { setShowWrite(false); setEditPost(null); }}
             onPublished={(isDraft) => {
-              showToast(isDraft ? 'Draft saved!' : '✦ Post published!')
+              showToast(isDraft ? (editPost ? 'Draft updated!' : 'Draft saved!') : (editPost ? 'Changes saved!' : '✦ Post published!'))
               fetchPosts()
             }}
           />
