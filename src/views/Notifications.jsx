@@ -96,8 +96,8 @@ function NotificationsInner({ profile }) {
   async function fetchPastNotifs() {
     try {
       const [ {data: frData}, {data: grData} ] = await Promise.all([
-        supabase.from('friend_requests').select('id,sender_id,receiver_id,status,created_at,updated_at').eq('status','accepted').or(`sender_id.eq.${profile.id},receiver_id.eq.${profile.id}`).order('updated_at',{ascending:false}).limit(15),
-        supabase.from('group_requests').select('id,group_id,sender_id,receiver_id,request_type,status,created_at,updated_at').eq('status','accepted').or(`sender_id.eq.${profile.id},receiver_id.eq.${profile.id}`).order('updated_at',{ascending:false}).limit(15)
+        supabase.from('friend_requests').select('id,sender_id,receiver_id,status,created_at').eq('status','accepted').or(`sender_id.eq.${profile.id},receiver_id.eq.${profile.id}`).order('created_at',{ascending:false}).limit(15),
+        supabase.from('group_requests').select('id,group_id,sender_id,receiver_id,request_type,status,created_at').eq('status','accepted').or(`sender_id.eq.${profile.id},receiver_id.eq.${profile.id}`).order('created_at',{ascending:false}).limit(15)
       ])
 
       const past = []
@@ -116,7 +116,7 @@ function NotificationsInner({ profile }) {
             past.push({
               id: 'pfr-'+r.id,
               type: 'friend',
-              timestamp: r.updated_at || r.created_at,
+              timestamp: r.created_at,
               message: r.sender_id === profile.id ? `${other.first_name} accepted your friend request.` : `You became friends with ${other.first_name}.`,
               iconData: other
             })
@@ -137,7 +137,7 @@ function NotificationsInner({ profile }) {
             past.push({
               id: 'pgr-'+r.id,
               type: 'group',
-              timestamp: r.updated_at || r.created_at,
+              timestamp: r.created_at,
               message: r.request_type === 'join_request' && r.sender_id === profile.id ? `Your request to join ${g.name} was accepted.` : `You joined ${g.name}.`,
               iconData: g
             })
@@ -218,7 +218,7 @@ function NotificationsInner({ profile }) {
     setActing(p=>({...p,[reqId]:action==='accepted'?'accepting':'declining'}))
     try {
       const req = friendReqs.find(r => r.id === reqId)
-      const {error}=await supabase.from('friend_requests').update({status:action, updated_at: new Date().toISOString()}).eq('id',reqId)
+      const {error}=await supabase.from('friend_requests').update({status:action}).eq('id',reqId)
       if(error) throw error
 
       // When accepted, notify the sender so they know they can connect
