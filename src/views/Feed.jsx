@@ -193,7 +193,7 @@ export function PostCard({ post, currentProfile }) {
     setCommentText('')
     const { data, error } = await supabase.from('post_comments').insert({ post_id: post.id, user_id: myId, content: txt }).select('id,content,created_at,user_id').single()
     if (error) {
-      alert("⚠️ Action Failed: The 'post_comments' table is missing. Please run the provided bugfix_setup.sql in your Supabase SQL Editor.")
+      alert(`⚠️ Action Failed: ${error.message}\nDetails: ${error.details || 'None'}`)
       return
     }
     if (data) setComments(prev => [...prev, { ...data, profiles: { first_name: currentProfile.first_name || currentProfile.firstName, last_name: currentProfile.last_name || currentProfile.lastName, avatar_url: currentProfile.avatar_url || currentProfile.avatarUrl } }])
