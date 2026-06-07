@@ -263,6 +263,7 @@ export default function ChatRoom({ currentProfile }) {
       .select('status')
       .or(`and(sender_id.eq.${myId},receiver_id.eq.${friendId}),and(sender_id.eq.${friendId},receiver_id.eq.${myId})`)
       .eq('status', 'accepted')
+      .limit(1)
       .maybeSingle()
       .then(({ data }) => {
         setIsFriend(!!data)

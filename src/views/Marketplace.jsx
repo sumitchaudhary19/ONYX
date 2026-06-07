@@ -375,7 +375,8 @@ export default function Marketplace({ profile, onClose }) {
       .select('id, status')
       .or(`and(sender_id.eq.${profile.id},receiver_id.eq.${item.seller_id}),and(sender_id.eq.${item.seller_id},receiver_id.eq.${profile.id})`)
       .eq('status', 'accepted')
-      .single()
+      .limit(1)
+      .maybeSingle()
 
     const autoMsg = `Hey! I'm interested in buying your ${item.title} for ₹${parseFloat(item.price).toLocaleString('en-IN')}. Is it still available?`
 

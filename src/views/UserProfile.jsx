@@ -275,6 +275,8 @@ export default function UserProfile({ currentProfile }) {
           .from('friend_requests')
           .select('status')
           .or(`and(sender_id.eq.${currentProfile.id},receiver_id.eq.${userId}),and(sender_id.eq.${userId},receiver_id.eq.${currentProfile.id})`)
+          .order('created_at', { ascending: false })
+          .limit(1)
           .maybeSingle()
         if (data) setRequestStatus(data.status)
       } catch(err) {

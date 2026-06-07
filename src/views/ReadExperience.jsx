@@ -126,7 +126,8 @@ export default function ReadExperience({ post, profile, onClose }) {
       .select('id, status')
       .or(`and(sender_id.eq.${profile.id},receiver_id.eq.${post.author_id}),and(sender_id.eq.${post.author_id},receiver_id.eq.${profile.id})`)
       .eq('status', 'accepted')
-      .single()
+      .limit(1)
+      .maybeSingle()
 
     if (friendReq) {
       onClose()
@@ -144,7 +145,8 @@ export default function ReadExperience({ post, profile, onClose }) {
         .from('friend_requests')
         .select('id')
         .or(`and(sender_id.eq.${profile.id},receiver_id.eq.${post.author_id}),and(sender_id.eq.${post.author_id},receiver_id.eq.${profile.id})`)
-        .single()
+        .limit(1)
+        .maybeSingle()
 
       if (!existing) {
         // Insert friend request
