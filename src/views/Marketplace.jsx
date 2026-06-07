@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   X, Plus, Upload, ShoppingBag, MessageCircle, MoreVertical,
-  CheckCircle, Tag, Loader, ChevronDown, Image as ImageIcon, Trash2
+  CheckCircle, Tag, Loader, ChevronDown, Image as ImageIcon, Trash2, Pen
 } from 'lucide-react'
 import { supabase } from '../supabaseClient'
 import { useNavigate } from 'react-router-dom'
@@ -48,10 +48,15 @@ async function uploadImage(file, sellerId) {
 }
 
 /* ── Sell Item Modal ── */
-function SellModal({ profile, onClose, onListed }) {
-  const [form, setForm] = useState({ title: '', description: '', price: '', category: 'Books' })
+function SellModal({ profile, editItem, onClose, onListed }) {
+  const [form, setForm] = useState({ 
+    title: editItem?.title || '', 
+    description: editItem?.description || '', 
+    price: editItem?.price || '', 
+    category: editItem?.category || 'Books' 
+  })
   const [images, setImages] = useState([])         // File[]
-  const [previews, setPreviews] = useState([])      // string (object URLs)
+  const [previews, setPreviews] = useState(editItem?.image_urls || []) // string (object URLs or remote URLs)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const fileRef = useRef()
@@ -73,29 +78,41 @@ function SellModal({ profile, onClose, onListed }) {
     setLoading(true)
     setError(null)
     try {
-      // Try uploading images — if bucket missing, gracefully skip photos
-      let imageUrls = []
+      let imageUrls = previews.filter(p => !p.startsWith('blob:')) // keep existing remote URLs if not removed
       if (images.length > 0) {
         const results = await Promise.allSettled(images.map(img => uploadImage(img, profile.id)))
-        imageUrls = results
+        const newUrls = results
           .filter(r => r.status === 'fulfilled')
           .map(r => r.value)
-        // If ALL uploads failed, warn but still proceed with listing
+        imageUrls = [...imageUrls, ...newUrls]
+        
         const failed = results.filter(r => r.status === 'rejected')
         if (failed.length > 0 && imageUrls.length === 0) {
           setError('Photos could not be uploaded (storage not ready). Listing without photos.')
         }
       }
-      const { error: insertError } = await supabase.from('marketplace_items').insert({
-        seller_id:   profile.id,
-        title:       form.title.trim(),
-        description: form.description.trim(),
-        price:       parseFloat(form.price),
-        category:    form.category,
-        image_urls:  imageUrls,
-      })
-      if (insertError) throw insertError
-      onListed()
+
+      if (editItem) {
+        const { error: updateError } = await supabase.from('marketplace_items').update({
+          title:       form.title.trim(),
+          description: form.description.trim(),
+          price:       parseFloat(form.price),
+          category:    form.category,
+          image_urls:  imageUrls,
+        }).eq('id', editItem.id)
+        if (updateError) throw updateError
+      } else {
+        const { error: insertError } = await supabase.from('marketplace_items').insert({
+          seller_id:   profile.id,
+          title:       form.title.trim(),
+          description: form.description.trim(),
+          price:       parseFloat(form.price),
+          category:    form.category,
+          image_urls:  imageUrls,
+        })
+        if (insertError) throw insertError
+      }
+      onListed(editItem ? 'updated' : 'inserted')
       onClose()
     } catch (err) {
       setError(err.message ?? 'Failed to list item')
@@ -129,7 +146,7 @@ function SellModal({ profile, onClose, onListed }) {
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <h2 style={{ fontSize: '18px', fontWeight: 800, color: '#f1f5f9' }}>List an Item</h2>
+          <h2 style={{ fontSize: '18px', fontWeight: 800, color: '#f1f5f9' }}>{editItem ? 'Edit Listing' : 'List an Item'}</h2>
           <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.07)', border: 'none', borderRadius: '10px', padding: '8px', cursor: 'pointer', color: '#94a3b8', display: 'flex' }}><X style={{ width: 16, height: 16 }} /></button>
         </div>
 
@@ -212,8 +229,8 @@ function SellModal({ profile, onClose, onListed }) {
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'
             }}
           >
-            {loading ? <Loader style={{ width: 18, height: 18, animation: 'spin 1s linear infinite' }} /> : <Upload style={{ width: 18, height: 18 }} />}
-            {loading ? 'Listing…' : 'List for Sale'}
+            {loading ? <Loader style={{ width: 18, height: 18, animation: 'spin 1s linear infinite' }} /> : (editItem ? <Pen style={{ width: 18, height: 18 }} /> : <Upload style={{ width: 18, height: 18 }} />)}
+            {loading ? 'Saving…' : (editItem ? 'Save Changes' : 'List for Sale')}
           </button>
         </form>
       </motion.div>
@@ -222,7 +239,7 @@ function SellModal({ profile, onClose, onListed }) {
 }
 
 /* ── Product Card ── */
-function ProductCard({ item, currentProfile, onMessageSeller, onMarkSold }) {
+function ProductCard({ item, currentProfile, onMessageSeller, onMarkSold, onEdit, onDelete }) {
   const [menuOpen, setMenuOpen] = useState(false)
   const isMine = item.seller_id === currentProfile?.id
   const catColor = CATEGORY_COLORS[item.category] ?? '#64748b'
@@ -272,23 +289,40 @@ function ProductCard({ item, currentProfile, onMessageSeller, onMarkSold }) {
             </button>
             <AnimatePresence>
               {menuOpen && (
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.85, y: -4 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.85 }}
-                  style={{
-                    position: 'absolute', top: '36px', right: 0, minWidth: '140px', zIndex: 10,
-                    background: '#0d1630', border: '1px solid rgba(255,255,255,0.12)',
-                    borderRadius: '14px', padding: '6px', boxShadow: '0 12px 40px rgba(0,0,0,0.6)'
-                  }}
-                  onClick={e => e.stopPropagation()}
-                >
-                  <button
-                    onClick={() => { onMarkSold(item.id); setMenuOpen(false) }}
-                    style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', background: 'transparent', border: 'none', cursor: 'pointer', borderRadius: '10px', color: '#34d399' }}
-                  >
-                    <CheckCircle style={{ width: 14, height: 14 }} />
-                    <span style={{ fontSize: '13px', fontWeight: 600 }}>Mark as Sold</span>
-                  </button>
-                </motion.div>
+                  <>
+                    <div style={{ position: 'fixed', inset: 0, zIndex: 9 }} onClick={(e) => { e.stopPropagation(); setMenuOpen(false) }} />
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.85, y: -4 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.85 }}
+                      style={{
+                        position: 'absolute', top: '36px', right: 0, minWidth: '160px', zIndex: 10,
+                        background: '#0d1630', border: '1px solid rgba(255,255,255,0.12)',
+                        borderRadius: '14px', padding: '6px', boxShadow: '0 12px 40px rgba(0,0,0,0.6)'
+                      }}
+                      onClick={e => e.stopPropagation()}
+                    >
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setMenuOpen(false); onMarkSold(item.id); }}
+                        style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', background: 'transparent', border: 'none', cursor: 'pointer', borderRadius: '10px', color: '#34d399' }}
+                      >
+                        <CheckCircle style={{ width: 14, height: 14 }} />
+                        <span style={{ fontSize: '13px', fontWeight: 600 }}>Mark as Sold</span>
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setMenuOpen(false); onEdit(item); }}
+                        style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', background: 'transparent', border: 'none', cursor: 'pointer', borderRadius: '10px', color: '#e2e8f0' }}
+                      >
+                        <Pen style={{ width: 14, height: 14 }} />
+                        <span style={{ fontSize: '13px', fontWeight: 600 }}>Edit Listing</span>
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setMenuOpen(false); onDelete(item); }}
+                        style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', background: 'transparent', border: 'none', cursor: 'pointer', borderRadius: '10px', color: '#ef4444' }}
+                      >
+                        <Trash2 style={{ width: 14, height: 14 }} />
+                        <span style={{ fontSize: '13px', fontWeight: 600 }}>Delete Listing</span>
+                      </button>
+                    </motion.div>
+                  </>
               )}
             </AnimatePresence>
           </div>
@@ -347,6 +381,7 @@ export default function Marketplace({ profile, onClose }) {
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('All')
   const [showSell, setShowSell] = useState(false)
+  const [editItem, setEditItem] = useState(null)
   const navigate = useNavigate()
   const [toast, setToast] = useState(null)
 
@@ -405,6 +440,26 @@ export default function Marketplace({ profile, onClose }) {
     setItems(prev => prev.filter(i => i.id !== id))
   }
 
+  const handleEditItem = (item) => {
+    setEditItem(item)
+    setShowSell(true)
+  }
+
+  const handleDeleteItem = async (item) => {
+    if (window.confirm("Are you sure you want to delete this item permanently?")) {
+      setItems(prev => prev.filter(i => i.id !== item.id))
+      try {
+        const { error } = await supabase.from('marketplace_items').delete().eq('id', item.id)
+        if (error) throw error
+        setToast("Listing deleted successfully")
+        setTimeout(() => setToast(null), 3000)
+      } catch (err) {
+        console.error("Delete failed", err)
+        fetchItems()
+      }
+    }
+  }
+
   const filteredItems = filter === 'All' ? items : items.filter(i => i.category === filter)
 
   return (
@@ -444,7 +499,7 @@ export default function Marketplace({ profile, onClose }) {
         <div style={{ display: 'flex', gap: '10px' }}>
           <motion.button
             whileTap={{ scale: 0.92 }}
-            onClick={() => setShowSell(true)}
+            onClick={() => { setEditItem(null); setShowSell(true); }}
             style={{
               background: 'linear-gradient(135deg, #7c3aed, #4f46e5)',
               border: 'none', borderRadius: '12px', padding: '10px 18px',
@@ -507,6 +562,8 @@ export default function Marketplace({ profile, onClose }) {
                 currentProfile={profile}
                 onMessageSeller={handleMessageSeller}
                 onMarkSold={handleMarkSold}
+                onEdit={handleEditItem}
+                onDelete={handleDeleteItem}
               />
             ))}
           </AnimatePresence>
@@ -515,7 +572,18 @@ export default function Marketplace({ profile, onClose }) {
 
       {/* Sell Modal */}
       <AnimatePresence>
-        {showSell && <SellModal profile={profile} onClose={() => setShowSell(false)} onListed={fetchItems} />}
+        {showSell && (
+          <SellModal 
+            profile={profile} 
+            editItem={editItem}
+            onClose={() => { setShowSell(false); setEditItem(null); }} 
+            onListed={(action) => {
+              fetchItems()
+              setToast(action === 'updated' ? 'Listing updated successfully!' : 'Listing published successfully!')
+              setTimeout(() => setToast(null), 3000)
+            }} 
+          />
+        )}
       </AnimatePresence>
 
       <AnimatePresence>
