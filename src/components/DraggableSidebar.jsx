@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence, useMotionValue, useTransform } from 'framer-motion'
 import {
   ChevronRight, X, PenSquare, ShoppingBag,
-  BookOpen, GraduationCap, Ghost, Camera, Users, Aperture
+  BookOpen, GraduationCap, Ghost, Camera, Users, Aperture, UtensilsCrossed
 } from 'lucide-react'
 
 const SIDEBAR_ITEMS = [
@@ -10,13 +10,14 @@ const SIDEBAR_ITEMS = [
   { id: 'snap',     label: 'Snap Camera',   icon: Camera,       color: '#fbbf24', glow: 'rgba(251,191,36,0.5)'  },
   { id: 'story',    label: 'Add Story',     icon: Aperture,     color: '#f472b6', glow: 'rgba(244,114,182,0.5)' },
   { id: 'group',    label: 'New Group',     icon: Users,        color: '#34d399', glow: 'rgba(52,211,153,0.5)'  },
-  { id: 'shop',     label: 'MNIT Shop',     icon: ShoppingBag,  color: '#60a5fa', glow: 'rgba(96,165,250,0.5)'  },
-  { id: 'vault',    label: 'Vault',         icon: BookOpen,     color: '#c084fc', glow: 'rgba(192,132,252,0.5)' },
-  { id: 'guidance', label: 'Guidance Hub',  icon: GraduationCap,color: '#2dd4bf', glow: 'rgba(45,212,191,0.5)'  },
-  { id: 'ama',      label: 'Anonymous AMA', icon: Ghost,        color: '#818cf8', glow: 'rgba(129,140,248,0.5)' },
+  { id: 'shop',     label: 'MNIT Shop',     icon: ShoppingBag,      color: '#60a5fa', glow: 'rgba(96,165,250,0.5)'  },
+  { id: 'mess',     label: 'Mess Radar',    icon: UtensilsCrossed,  color: '#fb923c', glow: 'rgba(251,146,60,0.5)'  },
+  { id: 'vault',    label: 'Vault',         icon: BookOpen,         color: '#c084fc', glow: 'rgba(192,132,252,0.5)' },
+  { id: 'guidance', label: 'Guidance Hub',  icon: GraduationCap,    color: '#2dd4bf', glow: 'rgba(45,212,191,0.5)'  },
+  { id: 'ama',      label: 'Anonymous AMA', icon: Ghost,            color: '#818cf8', glow: 'rgba(129,140,248,0.5)' },
 ]
 
-export default function DraggableSidebar({ onNavigate, onPost, onSnap, onStory, onGroup, onShop }) {
+export default function DraggableSidebar({ onNavigate, onPost, onSnap, onStory, onGroup, onShop, onMess }) {
   const [isOpen, setIsOpen] = useState(false)
   const [btnY, setBtnY] = useState(() => {
     try { return parseFloat(localStorage.getItem('onyx_sidebar_y')) || 0 } catch { return 0 }
@@ -43,6 +44,7 @@ export default function DraggableSidebar({ onNavigate, onPost, onSnap, onStory, 
       case 'story':    onStory?.(); break
       case 'group':    onGroup?.(); break
       case 'shop':     onShop?.(); break
+      case 'mess':     onMess?.(); break
       case 'vault':
       case 'guidance':
       case 'ama':

@@ -20,6 +20,7 @@ import ReadExperience from '../views/ReadExperience'
 import AnonymousAMA from '../views/AnonymousAMA'
 import DraggableSidebar from './DraggableSidebar'
 import Marketplace from '../views/Marketplace'
+import MessRadar from '../views/MessRadar'
 import { supabase } from '../supabaseClient'
 
 /* ── Per-view Error Boundary ── */
@@ -114,6 +115,7 @@ export default function MainLayout({ profile, session }) {
   const [storyFile,    setStoryFile   ] = useState(null)
   const [readPost,     setReadPost    ] = useState(null)
   const [shopPhase,    setShopPhase   ] = useState('idle') // 'idle' | 'transition' | 'shop'
+  const [showMess,     setShowMess    ] = useState(false)
   const storyInputRef = useRef(null)
 
   const openShop = () => {
@@ -305,6 +307,7 @@ export default function MainLayout({ profile, session }) {
         onStory={() => storyInputRef.current?.click()}
         onGroup={() => setShowGroup(true)}
         onShop={openShop}
+        onMess={() => setShowMess(true)}
       />
       {/* Hidden file input for story uploads from sidebar */}
       <input ref={storyInputRef} type="file" accept="image/*,video/*" hidden onChange={e => { const f = e.target.files?.[0]; if (f) setStoryFile(f); if (storyInputRef.current) storyInputRef.current.value = '' }} />
@@ -330,6 +333,13 @@ export default function MainLayout({ profile, session }) {
         )}
         {shopPhase === 'shop' && (
           <Marketplace profile={profile} onClose={() => setShopPhase('idle')} />
+        )}
+      </AnimatePresence>
+
+      {/* ═══ MESS RADAR ═══ */}
+      <AnimatePresence>
+        {showMess && (
+          <MessRadar profile={profile} onClose={() => setShowMess(false)} />
         )}
       </AnimatePresence>
     </div>
