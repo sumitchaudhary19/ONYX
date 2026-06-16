@@ -404,7 +404,7 @@ export default function Profile({profile:initialProfile, onTabChange}){
     setSaving(true);setSaveError(null)
     try{
       const{data:{user}}=await supabase.auth.getUser()
-      const{error}=await supabase.from('profiles').upsert({id:user.id,first_name:form.firstName.trim(),last_name:form.lastName.trim(),username:form.username.trim().toLowerCase(),bio:form.bio.trim()})
+      const{error}=await supabase.from('profiles').upsert({id:user.id,first_name:form.firstName.trim(),last_name:form.lastName.trim(),username:form.username.trim().toLowerCase(),bio:form.bio.trim(),upi_id:form.upiId?.trim()||null})
       if(error)throw error
       setProfile(p=>({...p,...form,username:form.username.trim().toLowerCase()}))
       setIsEditing(false)
@@ -413,7 +413,7 @@ export default function Profile({profile:initialProfile, onTabChange}){
   }
 
   const startEdit=()=>{
-    setForm({firstName:profile?.firstName||'',lastName:profile?.lastName||'',username:profile?.username||'',bio:profile?.bio||''})
+    setForm({firstName:profile?.firstName||'',lastName:profile?.lastName||'',username:profile?.username||'',bio:profile?.bio||'',upiId:initialProfile?.upi_id||''})
     setSaveError(null);setIsEditing(true)
   }
 
@@ -558,6 +558,14 @@ export default function Profile({profile:initialProfile, onTabChange}){
             <div style={{borderBottom:'none'}}>
               <InfoRow icon={Shield} label="Email" value={authMeta?.email??'—'} iconColor="#f59e0b"/>
             </div>
+            {isEditing?(
+              <div style={{display:'flex',flexDirection:'column',gap:'6px',marginTop:'10px',padding:'10px',background:'rgba(16,185,129,0.06)',border:'1px solid rgba(16,185,129,0.15)',borderRadius:'12px'}}>
+                <label style={{fontSize:'10px',fontWeight:600,color:'#10b981',textTransform:'uppercase',letterSpacing:'0.06em'}}>UPI ID (for Campus Store payments)</label>
+                <input value={form.upiId||''} onChange={e=>setForm(f=>({...f,upiId:e.target.value}))} placeholder="yourname@upi" style={{...IS,borderColor:'rgba(16,185,129,0.2)'}}/>
+              </div>
+            ):initialProfile?.upi_id?(
+              <InfoRow icon={Shield} label="UPI ID" value={initialProfile.upi_id} iconColor="#10b981"/>
+            ):null}
           </div>
         </SectionCard>
         <SectionCard title="Activity Overview" icon={Activity} iconColor="#a78bfa">

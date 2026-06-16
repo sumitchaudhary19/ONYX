@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ArrowLeft, Check, CheckCheck, X, Reply, Forward, Edit3, Trash2, Pin, Shield, Lock } from 'lucide-react'
+import { ArrowLeft, Check, CheckCheck, X, Reply, Forward, Edit3, Trash2, Pin, Shield, Lock, IndianRupee, QrCode, ExternalLink } from 'lucide-react'
 import { supabase } from '../supabaseClient'
 import TypingBar from '../components/TypingBar'
 import { processMediaFile } from '../utils/mediaUtils'
 import { filterEphemeralMessages, getExpirationText } from '../utils/ephemeral'
+import QRCode from 'react-qr-code'
 
 const GRADIENTS = ['linear-gradient(135deg,#3b82f6,#06b6d4)', 'linear-gradient(135deg,#8b5cf6,#ec4899)', 'linear-gradient(135deg,#10b981,#14b8a6)', 'linear-gradient(135deg,#f59e0b,#f97316)', 'linear-gradient(135deg,#ef4444,#f43f5e)', 'linear-gradient(135deg,#a855f7,#7c3aed)']
 
@@ -80,6 +81,212 @@ function MsgMenu({ msg, isMine, onReply, onForward, onEdit, onDelete, onPin, onC
             <Icon className="w-4 h-4 shrink-0" /><span className="text-[15px] font-medium">{label}</span>
           </motion.button>
         ))}
+      </motion.div>
+    </motion.div>
+  )
+}
+
+/* ── System Receipt Card (for payment confirmations) ── */
+function SystemReceiptBubble({ msg }) {
+  return (
+    <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}
+      className="flex justify-center my-3 px-2">
+      <div style={{
+        background: 'linear-gradient(135deg, rgba(16,185,129,0.12), rgba(52,211,153,0.06))',
+        border: '1px solid rgba(52,211,153,0.25)',
+        borderRadius: '18px',
+        padding: '14px 20px',
+        maxWidth: '90%',
+        backdropFilter: 'blur(12px)',
+        boxShadow: '0 0 24px rgba(16,185,129,0.15), inset 0 1px 0 rgba(255,255,255,0.06)',
+        textAlign: 'center'
+      }}>
+        <p style={{ fontSize: '14px', color: '#a7f3d0', fontWeight: 600, lineHeight: 1.5, margin: 0 }}>
+          {msg.content}
+        </p>
+        <p style={{ fontSize: '10px', color: '#6ee7b7', marginTop: '8px', fontWeight: 500, opacity: 0.7, margin: '8px 0 0' }}>
+          {fmtTime(msg.created_at)} • ONYX Verified Receipt
+        </p>
+      </div>
+    </motion.div>
+  )
+}
+
+/* ── UPI Payment Modal ── */
+function PaymentModal({ shopItem, friend, currentProfile, onClose, onReceiptSent }) {
+  const [sellerUpi, setSellerUpi] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [payMode, setPayMode] = useState('full') // 'full' | 'token'
+  const [showConfirm, setShowConfirm] = useState(false)
+  const [sendingReceipt, setSendingReceipt] = useState(false)
+  const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
+
+  const amount = payMode === 'full' ? parseFloat(shopItem.price) : 50
+  const sellerName = friend ? [friend.first_name, friend.last_name].filter(Boolean).join(' ') : 'Seller'
+  const upiLink = sellerUpi ? `upi://pay?pa=${encodeURIComponent(sellerUpi)}&pn=${encodeURIComponent(sellerName)}&am=${amount}&tn=${encodeURIComponent(`Payment for ${shopItem.title} via ONYX`)}` : ''
+
+  useEffect(() => {
+    async function fetchUpi() {
+      setLoading(true)
+      try {
+        const { data } = await supabase.from('profiles').select('upi_id').eq('id', shopItem.seller_id).single()
+        setSellerUpi(data?.upi_id || null)
+      } catch (err) {
+        console.error('Failed to fetch UPI:', err)
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchUpi()
+  }, [shopItem.seller_id])
+
+  const requestUpi = async () => {
+    const msg = `Hey! I want to pay for the "${shopItem.title}". Please update your UPI ID in your profile settings so I can send the payment securely. 🙏`
+    await supabase.from('messages').insert({ sender_id: currentProfile.id, receiver_id: shopItem.seller_id, content: msg })
+    onClose()
+  }
+
+  const sendReceipt = async () => {
+    setSendingReceipt(true)
+    try {
+      const buyerName = [currentProfile.first_name, currentProfile.last_name].filter(Boolean).join(' ') || 'Buyer'
+      const content = `💸 Payment of ₹${amount.toLocaleString('en-IN')} initiated by ${buyerName} for "${shopItem.title}". Seller, please confirm receipt in person.`
+      await supabase.from('messages').insert({
+        sender_id: currentProfile.id,
+        receiver_id: shopItem.seller_id,
+        content,
+        is_system_receipt: true
+      })
+      onReceiptSent()
+      onClose()
+    } catch (err) {
+      console.error('Failed to send receipt:', err)
+    } finally {
+      setSendingReceipt(false)
+    }
+  }
+
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      onClick={onClose}
+      className="fixed inset-0 z-[600] flex items-center justify-center bg-black/80 backdrop-blur-md p-4">
+      <motion.div initial={{ scale: 0.88, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.88, y: 20 }}
+        transition={{ type: 'spring', stiffness: 360, damping: 32 }}
+        onClick={e => e.stopPropagation()}
+        style={{
+          width: '100%', maxWidth: '380px',
+          background: 'linear-gradient(180deg, #0d1630 0%, #080e22 100%)',
+          border: '1px solid rgba(255,255,255,0.1)',
+          borderRadius: '24px',
+          padding: '24px',
+          boxShadow: '0 24px 80px rgba(0,0,0,0.6), 0 0 40px rgba(124,58,237,0.15)',
+          display: 'flex', flexDirection: 'column', gap: '20px'
+        }}>
+
+        {/* Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div style={{ width: 36, height: 36, borderRadius: '12px', background: 'linear-gradient(135deg, #10b981, #059669)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 16px rgba(16,185,129,0.4)' }}>
+              <IndianRupee style={{ width: 18, height: 18, color: '#fff' }} />
+            </div>
+            <h3 style={{ fontSize: '17px', fontWeight: 800, color: '#f1f5f9', margin: 0 }}>Secure Payment</h3>
+          </div>
+          <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.07)', border: 'none', borderRadius: '10px', padding: '8px', cursor: 'pointer', color: '#94a3b8', display: 'flex' }}><X style={{ width: 16, height: 16 }} /></button>
+        </div>
+
+        {/* Item info */}
+        <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '16px', padding: '14px' }}>
+          <p style={{ fontSize: '13px', color: '#94a3b8', margin: '0 0 4px', fontWeight: 600 }}>Paying for:</p>
+          <p style={{ fontSize: '16px', fontWeight: 700, color: '#f1f5f9', margin: '0 0 4px' }}>{shopItem.title}</p>
+          <p style={{ fontSize: '20px', fontWeight: 900, color: '#a78bfa', margin: 0 }}>₹{parseFloat(shopItem.price).toLocaleString('en-IN')}</p>
+        </div>
+
+        {loading ? (
+          <div style={{ display: 'flex', justifyContent: 'center', padding: '30px 0' }}>
+            <svg style={{ width: 28, height: 28, color: '#3b82f6', animation: 'spin 1s linear infinite' }} fill="none" viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" style={{ opacity: 0.25 }} />
+              <path fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+            </svg>
+          </div>
+        ) : !sellerUpi ? (
+          /* Scenario A: Seller has no UPI ID */
+          <div style={{ textAlign: 'center', padding: '10px 0' }}>
+            <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'rgba(251,191,36,0.12)', border: '1px solid rgba(251,191,36,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px' }}>
+              <IndianRupee style={{ width: 24, height: 24, color: '#fbbf24' }} />
+            </div>
+            <p style={{ fontSize: '14px', color: '#f1f5f9', fontWeight: 600, margin: '0 0 6px' }}>Seller hasn't added their UPI ID</p>
+            <p style={{ fontSize: '12px', color: '#64748b', margin: '0 0 18px', lineHeight: 1.5 }}>Request them to update it in their profile settings.</p>
+            <motion.button whileTap={{ scale: 0.97 }} onClick={requestUpi}
+              style={{ width: '100%', padding: '14px', borderRadius: '14px', border: 'none', background: 'linear-gradient(135deg, #f59e0b, #d97706)', color: '#fff', fontSize: '14px', fontWeight: 700, cursor: 'pointer', boxShadow: '0 4px 20px rgba(245,158,11,0.35)' }}>
+              📩 Request UPI ID via Chat
+            </motion.button>
+          </div>
+        ) : (
+          /* Scenario B: UPI ID exists */
+          <>
+            {/* Amount Toggle */}
+            <div style={{ display: 'flex', background: 'rgba(255,255,255,0.04)', borderRadius: '12px', padding: '4px', border: '1px solid rgba(255,255,255,0.08)' }}>
+              <button onClick={() => setPayMode('full')}
+                style={{ flex: 1, padding: '10px', borderRadius: '10px', border: 'none', background: payMode === 'full' ? 'linear-gradient(135deg, #10b981, #059669)' : 'transparent', color: payMode === 'full' ? '#fff' : '#94a3b8', fontSize: '13px', fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s' }}>
+                Full ₹{parseFloat(shopItem.price).toLocaleString('en-IN')}
+              </button>
+              <button onClick={() => setPayMode('token')}
+                style={{ flex: 1, padding: '10px', borderRadius: '10px', border: 'none', background: payMode === 'token' ? 'linear-gradient(135deg, #8b5cf6, #7c3aed)' : 'transparent', color: payMode === 'token' ? '#fff' : '#94a3b8', fontSize: '13px', fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s' }}>
+                Token ₹50
+              </button>
+            </div>
+
+            {/* QR for PC / Button for mobile */}
+            {!showConfirm ? (
+              <>
+                {!isMobile && (
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
+                    <p style={{ fontSize: '12px', color: '#64748b', fontWeight: 600, margin: 0, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Scan to Pay</p>
+                    <div style={{ background: '#fff', borderRadius: '16px', padding: '16px', boxShadow: '0 8px 30px rgba(0,0,0,0.4)' }}>
+                      <QRCode value={upiLink} size={180} level="H" />
+                    </div>
+                    <p style={{ fontSize: '11px', color: '#475569', textAlign: 'center', margin: 0 }}>Open GPay/PhonePe and scan this QR</p>
+                  </div>
+                )}
+
+                <a href={upiLink} onClick={() => setTimeout(() => setShowConfirm(true), 500)} style={{ textDecoration: 'none' }}>
+                  <motion.div whileTap={{ scale: 0.97 }}
+                    style={{
+                      width: '100%', padding: '16px', borderRadius: '16px', border: 'none',
+                      background: 'linear-gradient(135deg, #10b981, #059669)',
+                      color: '#fff', fontSize: '16px', fontWeight: 800,
+                      cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px',
+                      boxShadow: '0 0 30px rgba(16,185,129,0.4), 0 4px 20px rgba(16,185,129,0.3)',
+                      textAlign: 'center'
+                    }}>
+                    <IndianRupee style={{ width: 20, height: 20 }} />
+                    Pay ₹{amount.toLocaleString('en-IN')} via UPI App
+                    <ExternalLink style={{ width: 16, height: 16, opacity: 0.7 }} />
+                  </motion.div>
+                </a>
+              </>
+            ) : (
+              /* Post-payment confirmation */
+              <div style={{ textAlign: 'center' }}>
+                <p style={{ fontSize: '15px', color: '#f1f5f9', fontWeight: 600, margin: '0 0 16px' }}>Did you complete the payment?</p>
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <motion.button whileTap={{ scale: 0.97 }} onClick={sendReceipt} disabled={sendingReceipt}
+                    style={{ flex: 1, padding: '14px', borderRadius: '14px', border: 'none', background: 'linear-gradient(135deg, #10b981, #059669)', color: '#fff', fontSize: '14px', fontWeight: 700, cursor: 'pointer', opacity: sendingReceipt ? 0.6 : 1 }}>
+                    {sendingReceipt ? 'Sending…' : '✅ Yes, I paid'}
+                  </motion.button>
+                  <motion.button whileTap={{ scale: 0.97 }} onClick={() => setShowConfirm(false)}
+                    style={{ flex: 1, padding: '14px', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.05)', color: '#94a3b8', fontSize: '14px', fontWeight: 700, cursor: 'pointer' }}>
+                    Not yet
+                  </motion.button>
+                </div>
+              </div>
+            )}
+
+            <p style={{ fontSize: '11px', color: '#334155', textAlign: 'center', margin: 0, lineHeight: 1.5 }}>
+              🔒 ONYX does not store any payment data. All transactions are P2P via UPI.
+            </p>
+          </>
+        )}
       </motion.div>
     </motion.div>
   )
@@ -222,6 +429,7 @@ function EditModal({ msg, onSave, onClose }) {
 export default function ChatRoom({ currentProfile }) {
   const { friendId } = useParams()
   const navigate = useNavigate()
+  const location = useLocation()
   const [friend, setFriend] = useState(null)
   const [messages, setMessages] = useState([])
   const [loading, setLoading] = useState(true)
@@ -238,11 +446,20 @@ export default function ChatRoom({ currentProfile }) {
   const [isFriend, setIsFriend] = useState(false)
   const [hasMore, setHasMore] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
+  const [shopItem, setShopItem] = useState(null)
+  const [showPayment, setShowPayment] = useState(false)
   
   const bottomRef = useRef(null)
   const myId = currentProfile?.id
   const myName = currentProfile?.firstName || 'Someone'
   const scrollBottom = useCallback(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [])
+
+  // Extract shop item from navigation state
+  useEffect(() => {
+    if (location.state?.fromShop && location.state?.item) {
+      setShopItem(location.state.item)
+    }
+  }, [location.state])
 
   // Pre-populate message from marketplace "Message Seller" flow
   useEffect(() => {
@@ -437,6 +654,25 @@ export default function ChatRoom({ currentProfile }) {
             }
           </AnimatePresence>
         </div>
+        {/* Payment FAB */}
+        {shopItem && (
+          <motion.button
+            onClick={() => setShowPayment(true)}
+            whileTap={{ scale: 0.92 }}
+            animate={{ boxShadow: ['0 0 15px rgba(16,185,129,0.3)', '0 0 30px rgba(124,58,237,0.4)', '0 0 15px rgba(16,185,129,0.3)'] }}
+            transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+            style={{
+              width: 42, height: 42, borderRadius: '14px',
+              background: 'linear-gradient(135deg, #10b981, #7c3aed)',
+              border: '1.5px solid rgba(255,255,255,0.2)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer', flexShrink: 0,
+              backdropFilter: 'blur(8px)'
+            }}
+          >
+            <IndianRupee style={{ width: 20, height: 20, color: '#fff' }} />
+          </motion.button>
+        )}
       </header>
 
       {pinnedMessages.length > 0 && (
@@ -493,9 +729,11 @@ export default function ChatRoom({ currentProfile }) {
           <div className="flex flex-col">
             <AnimatePresence initial={false}>
               {messages && messages.length > 0 && messages.map(msg => (
-                <Bubble key={msg.id} msg={msg} isMine={msg.sender_id === myId} myId={myId} 
-                  replyMsg={msg.reply_to ? messages.find(m => m.id === msg.reply_to) : null}
-                  onLongPress={m => setSelectedMsg(m)} navigate={navigate} />
+                msg.is_system_receipt
+                  ? <SystemReceiptBubble key={msg.id} msg={msg} />
+                  : <Bubble key={msg.id} msg={msg} isMine={msg.sender_id === myId} myId={myId} 
+                      replyMsg={msg.reply_to ? messages.find(m => m.id === msg.reply_to) : null}
+                      onLongPress={m => setSelectedMsg(m)} navigate={navigate} />
               ))}
             </AnimatePresence>
           </div>
@@ -552,6 +790,15 @@ export default function ChatRoom({ currentProfile }) {
         )}
         {showForward && <FriendPicker title="Forward to…" currentProfile={currentProfile} onSelect={forwardTo} onClose={() => { setShowForward(false); setSelectedMsg(null) }} />}
         {showEdit && selectedMsg && <EditModal msg={selectedMsg} onSave={editMsg} onClose={() => { setShowEdit(false); setSelectedMsg(null) }} />}
+        {showPayment && shopItem && (
+          <PaymentModal
+            shopItem={shopItem}
+            friend={friend}
+            currentProfile={currentProfile}
+            onClose={() => setShowPayment(false)}
+            onReceiptSent={() => {}}
+          />
+        )}
       </AnimatePresence>
     </div>
   )

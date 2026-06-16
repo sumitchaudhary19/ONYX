@@ -416,10 +416,10 @@ export default function Marketplace({ profile, onClose }) {
     const autoMsg = `Hey! I'm interested in buying your ${item.title} for ₹${parseFloat(item.price).toLocaleString('en-IN')}. Is it still available?`
 
     if (friendReq) {
-      // Already friends: go straight to ChatRoom
+      // Already friends: go straight to ChatRoom with item context for UPI payment
       sessionStorage.setItem('marketplace_intro_msg', autoMsg)
       onClose()
-      navigate(`/chat/room/${item.seller_id}`)
+      navigate(`/chat/room/${item.seller_id}`, { state: { fromShop: true, item: { id: item.id, title: item.title, price: item.price, seller_id: item.seller_id } } })
     } else {
       // Not friends: insert into notifications table and show toast
       await supabase.from('notifications').insert({
