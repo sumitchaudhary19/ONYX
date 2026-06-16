@@ -116,9 +116,10 @@ function SectionCard({title,icon:Icon,iconColor='#60a5fa',children}){
 }
 
 /* Friends List Modal */
-function FriendsListModal({profile,onClose}){
+function FriendsListModal({profile,onClose,onUnfriend}){
   const[friends,setFriends]=useState([])
   const[loading,setLoading]=useState(true)
+  const[unfriending,setUnfriending]=useState(null)
   const navigate=useNavigate()
   useEffect(()=>{
     async function load(){
@@ -130,6 +131,30 @@ function FriendsListModal({profile,onClose}){
     }
     load()
   },[profile.id])
+
+  const handleUnfriend = async (friendId) => {
+    if(!window.confirm("Are you sure you want to remove this friend?")) return
+    setUnfriending(friendId)
+    // Optimistic UI Update: filter out the friend
+    setFriends(prev => prev.filter(f => f.id !== friendId))
+    
+    try {
+      const { error } = await supabase.from('friend_requests')
+        .delete()
+        .or(`and(sender_id.eq.${profile.id},receiver_id.eq.${friendId}),and(sender_id.eq.${friendId},receiver_id.eq.${profile.id})`)
+      
+      if (error) {
+        console.error("Supabase delete error:", error)
+      } else {
+        if(onUnfriend) onUnfriend()
+      }
+    } catch (err) {
+      console.error("Failed to unfriend:", err)
+    } finally {
+      setUnfriending(null)
+    }
+  }
+
   return(
     <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}}
       onClick={onClose}
@@ -154,10 +179,16 @@ function FriendsListModal({profile,onClose}){
                   <p style={{fontSize:'15px',fontWeight:600,color:'#f1f5f9',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{name}</p>
                   <p style={{fontSize:'12px',color:'#64748b'}}>@{f.username}</p>
                 </div>
-                <motion.button whileHover={{scale:1.05}} whileTap={{scale:0.95}} onClick={()=>{onClose();navigate(`/user/${f.id}`)}}
-                  style={{padding:'8px 14px',borderRadius:'12px',border:'1px solid rgba(59,130,246,0.5)',background:'linear-gradient(135deg,rgba(37,99,235,0.1),rgba(29,78,216,0.3))',color:'#60a5fa',fontSize:'11px',fontWeight:700,cursor:'pointer',boxShadow:'0 0 12px rgba(37,99,235,0.3)',textTransform:'uppercase',letterSpacing:'0.05em',flexShrink:0}}>
-                  View Profile
-                </motion.button>
+                <div style={{display:'flex',gap:'8px'}}>
+                  <motion.button whileHover={{scale:1.05}} whileTap={{scale:0.95}} onClick={()=>{onClose();navigate(`/user/${f.id}`)}}
+                    style={{padding:'8px 14px',borderRadius:'12px',border:'1px solid rgba(59,130,246,0.5)',background:'linear-gradient(135deg,rgba(37,99,235,0.1),rgba(29,78,216,0.3))',color:'#60a5fa',fontSize:'11px',fontWeight:700,cursor:'pointer',boxShadow:'0 0 12px rgba(37,99,235,0.3)',textTransform:'uppercase',letterSpacing:'0.05em',flexShrink:0}}>
+                    Profile
+                  </motion.button>
+                  <motion.button whileHover={{scale:1.05}} whileTap={{scale:0.95}} onClick={()=>handleUnfriend(f.id)} disabled={unfriending===f.id}
+                    style={{padding:'8px 14px',borderRadius:'12px',border:'1px solid rgba(239,68,68,0.5)',background:'linear-gradient(135deg,rgba(239,68,68,0.1),rgba(220,38,38,0.3))',color:'#f87171',fontSize:'11px',fontWeight:700,cursor:'pointer',boxShadow:'0 0 12px rgba(239,68,68,0.3)',textTransform:'uppercase',letterSpacing:'0.05em',flexShrink:0,opacity:unfriending===f.id?0.5:1}}>
+                    {unfriending===f.id?'...':'Remove'}
+                  </motion.button>
+                </div>
               </div>
             )
           })}
@@ -566,7 +597,7 @@ export default function Profile({profile:initialProfile, onTabChange}){
         {showAbout&&<AboutModal onClose={()=>setShowAbout(false)}/>}
       </AnimatePresence>
       <AnimatePresence>
-        {showFriends&&initialProfile&&<FriendsListModal profile={initialProfile} onClose={()=>setShowFriends(false)}/>}
+        {showFriends&&initialProfile&&<FriendsListModal profile={initialProfile} onClose={()=>setShowFriends(false)} onUnfriend={()=>setFriendCount(prev=>Math.max(0, prev-1))} />}
       </AnimatePresence>
     </div>
   )

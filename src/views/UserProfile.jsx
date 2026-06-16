@@ -321,6 +321,7 @@ export default function UserProfile({ currentProfile }) {
         .or(`and(sender_id.eq.${currentProfile.id},receiver_id.eq.${userId}),and(sender_id.eq.${userId},receiver_id.eq.${currentProfile.id})`)
       if (error) throw error
       setRequestStatus(null)
+      setFriendCount(prev => Math.max(0, prev - 1))
       showToast('Friend removed.')
     } catch (err) {
       showToast('Failed to remove friend.', 'error')

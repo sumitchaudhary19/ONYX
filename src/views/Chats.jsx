@@ -341,6 +341,8 @@ export default function Chats({profile}){
     const ch=supabase.channel(`friends-list-${profile.id}`)
       .on('postgres_changes',{event:'UPDATE',schema:'public',table:'friend_requests'},
         (payload)=>{ if(payload.new?.status==='accepted')fetchFriends() })
+      .on('postgres_changes',{event:'DELETE',schema:'public',table:'friend_requests'},
+        ()=>fetchFriends())
       .subscribe()
     // Live unread counter: listen for new messages TO me
     const unreadCh=supabase.channel(`unread-watcher-${profile.id}`)
