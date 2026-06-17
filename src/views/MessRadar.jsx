@@ -71,8 +71,7 @@ export default function MessRadar({ profile, onClose }) {
         .from('mess_votes')
         .select('vote_option, user_id')
         .eq('meal_type', currentMeal)
-        .gte('created_at', `${today}T00:00:00`)
-        .lte('created_at', `${today}T23:59:59`)
+        .eq('vote_date', today)
 
       const counts = { tasty: 0, average: 0, skip: 0 }
       let myVote = null
