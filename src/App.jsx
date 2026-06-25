@@ -7,6 +7,7 @@ import MainLayout from './components/MainLayout'
 import UserProfile from './views/UserProfile'
 import ChatRoom from './views/ChatRoom'
 import GroupChatRoom from './views/GroupChatRoom'
+import { ThemeProvider } from './contexts/ThemeContext'
 
 /* ── Error Boundary (catches React render crashes) ───── */
 class ErrorBoundary extends Component {
@@ -157,6 +158,7 @@ export default function App() {
 
   return (
     <ErrorBoundary>
+    <ThemeProvider>
     <BrowserRouter>
       <Routes>
 
@@ -230,6 +232,7 @@ export default function App() {
 
       </Routes>
     </BrowserRouter>
+    </ThemeProvider>
     </ErrorBoundary>
   )
 }

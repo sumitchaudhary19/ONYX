@@ -167,10 +167,10 @@ export default function MainLayout({ profile, session }) {
     .filter(Boolean).map(s => s[0]?.toUpperCase()).join('') || 'M'
 
   return (
-    <div className="flex flex-col md:flex-row h-[100dvh] w-full bg-[#060b18] overflow-hidden">
+    <div className="flex flex-col md:flex-row h-[100dvh] w-full bg-slate-50 dark:bg-[#060b18] text-slate-900 dark:text-white transition-colors duration-300 overflow-hidden">
       
       {/* ═══ NAVIGATION ═══ */}
-      <aside className="order-last md:order-first w-full h-[68px] md:w-[72px] md:h-full flex-shrink-0 flex md:flex-col items-center justify-around md:justify-start px-1 md:px-2 py-2 md:py-5 bg-[#060b18]/95 border-t md:border-t-0 md:border-r border-white/5 md:gap-3 backdrop-blur-xl z-50">
+      <aside className="order-last md:order-first w-full h-[68px] md:w-[72px] md:h-full flex-shrink-0 flex md:flex-col items-center justify-around md:justify-start px-1 md:px-2 py-2 md:py-5 bg-white/95 dark:bg-[#060b18]/95 border-t md:border-t-0 md:border-r border-slate-200 dark:border-white/5 md:gap-3 backdrop-blur-xl z-50 transition-colors duration-300">
         
         {/* Brand icon - desktop only */}
         <div className="hidden md:flex mb-4">
@@ -190,9 +190,9 @@ export default function MainLayout({ profile, session }) {
               whileTap={{ scale: 0.85 }}
               className={`relative flex flex-col items-center justify-center gap-0.5 rounded-2xl px-1 py-1.5 transition-all duration-200 min-w-[44px] md:w-[54px]
                 ${glowStyle ? 'animate-pulse' : ''}
-                ${isActive && !glowStyle ? 'bg-white/10 text-white' : ''}
+                ${isActive && !glowStyle ? 'bg-slate-200 dark:bg-white/10 text-slate-900 dark:text-white' : ''}
                 ${isActive && glowStyle ? glowStyle.bg : ''}
-                ${!isActive && !glowStyle ? 'text-slate-500 hover:text-slate-300' : ''}
+                ${!isActive && !glowStyle ? 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300' : ''}
               `}
               title={label}
             >
@@ -261,17 +261,19 @@ export default function MainLayout({ profile, session }) {
         </div>
       </aside>
 
-      {/* ═══ MAIN CONTENT ═══ */}
-      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
-
+      {/* ═══ CONTENT AREA ═══ */}
+      <main className="flex-1 w-full h-[calc(100dvh-68px)] md:h-full relative overflow-hidden bg-slate-50 dark:bg-[#060b18] transition-colors duration-300">
+        {/* subtle gradient glow */}
+        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-200/40 dark:bg-blue-600/10 rounded-full blur-[120px] pointer-events-none transition-colors duration-300" />
+        
         {/* Top header */}
-        <header className="flex-shrink-0 flex items-center justify-between px-4 md:px-5 py-3 md:py-4 border-b border-white/5 bg-[#060b18]/90 backdrop-blur-xl z-40">
+        <header className="flex-shrink-0 flex items-center justify-between px-4 md:px-5 py-3 md:py-4 border-b border-slate-200 dark:border-white/5 bg-white/90 dark:bg-[#060b18]/90 backdrop-blur-xl z-40 transition-colors duration-300">
           <div className="flex items-center gap-3">
             <div className="md:hidden flex">
               <img src="/onyx_logo.jpg" alt="Onyx" className="w-8 h-8 rounded-full object-cover drop-shadow-[0_0_8px_rgba(37,99,235,0.6)]" />
             </div>
             <div>
-              <h1 className={`text-[17px] font-bold text-white leading-tight ${activeTab === 'home' ? 'animate-onyx-glow' : ''}`}>
+              <h1 className={`text-[17px] font-bold text-slate-900 dark:text-white leading-tight ${activeTab === 'home' ? 'animate-onyx-glow' : ''}`}>
                 {activeTab === 'feed' ? 'Global Posts' : activeTab === 'home' ? 'Home' : activeTab === 'search' ? 'Search' : activeTab === 'settings' ? 'Settings' : TABS.find(t => t.id === activeTab)?.label || 'ONYX'}
               </h1>
               <p className="text-[11px] text-slate-400 mt-0.5 font-medium tracking-widest uppercase">ONYX</p>
@@ -283,7 +285,7 @@ export default function MainLayout({ profile, session }) {
         </header>
 
         {/* Animated page */}
-        <main className="flex-1 overflow-hidden relative">
+        <div className="flex-1 overflow-hidden relative">
           <AnimatePresence mode="wait" initial={false}>
             <motion.div
               key={activeTab}
@@ -296,8 +298,8 @@ export default function MainLayout({ profile, session }) {
               <ViewComponent id={activeTab} profile={profile} session={session} onTabChange={handleTabChange} onOpenPost={setReadPost}/>
             </motion.div>
           </AnimatePresence>
-        </main>
-      </div>
+        </div>
+      </main>
 
       {/* ═══ DRAGGABLE SIDEBAR (replaces ActionHubFAB + ShopFAB) ═══ */}
       <DraggableSidebar

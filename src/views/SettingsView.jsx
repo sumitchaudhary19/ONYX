@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { LogOut, Shield, Bell, Moon, Sun, Lock, UserX, X, AlertCircle, ChevronRight, CheckCircle2, Activity, MoreVertical, RefreshCw, Trash2 } from 'lucide-react'
 import { supabase } from '../supabaseClient'
 import { useNavigate } from 'react-router-dom'
+import { useTheme } from '../contexts/ThemeContext'
 
 function Toast({ message, icon: Icon, color = '#60a5fa', onClose }) {
   useEffect(() => { const t = setTimeout(onClose, 3000); return () => clearTimeout(t) }, [onClose])
@@ -305,9 +306,8 @@ export default function SettingsView({ profile, session }) {
   const [showDanger, setShowDanger] = useState(false)
   const [showActivity, setShowActivity] = useState(false)
 
-  // Appearance State
-  const initialTheme = localStorage.getItem('onyx_theme') || 'dark'
-  const [theme, setTheme] = useState(initialTheme)
+  // Appearance State (from ThemeContext)
+  const { theme, toggleTheme } = useTheme()
 
   const showMsg = (msg, icon = CheckCircle2, color = '#60a5fa') => setToast({ msg, icon, color })
 
@@ -325,43 +325,31 @@ export default function SettingsView({ profile, session }) {
     }
   }
 
-  const toggleTheme = () => {
-    const next = theme === 'dark' ? 'light' : 'dark'
-    setTheme(next)
-    localStorage.setItem('onyx_theme', next)
-    if (next === 'light') {
-      document.documentElement.classList.add('light')
-    } else {
-      document.documentElement.classList.remove('light')
-    }
-    showMsg(`${next === 'dark' ? 'Dark' : 'Light'} theme enabled`)
-  }
-
   const Section = ({ title, children }) => (
-    <div style={{ marginBottom: '24px' }}>
-      <h3 style={{ fontSize: '13px', fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '12px', paddingLeft: '4px' }}>{title}</h3>
-      <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '16px', overflow: 'hidden' }}>
+    <div className="mb-6">
+      <h3 className="text-[13px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3 pl-1 transition-colors duration-300">{title}</h3>
+      <div className="bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl overflow-hidden transition-colors duration-300 shadow-sm dark:shadow-none">
         {children}
       </div>
     </div>
   )
 
   const SettingRow = ({ icon: Icon, title, subtitle, onClick, right, color = '#60a5fa', isDanger = false, border = true }) => (
-    <motion.div whileHover={{ background: 'rgba(255,255,255,0.02)' }} onClick={onClick}
-      style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '14px 16px', cursor: onClick ? 'pointer' : 'default', borderBottom: border ? '1px solid rgba(255,255,255,0.04)' : 'none' }}>
-      <div style={{ width: 36, height: 36, borderRadius: '10px', background: isDanger ? 'rgba(239,68,68,0.1)' : `${color}15`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-        <Icon style={{ width: 18, height: 18, color: isDanger ? '#f87171' : color }} />
+    <motion.div whileHover={{ backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)' }} onClick={onClick}
+      className={`flex items-center gap-3.5 p-3.5 ${onClick ? 'cursor-pointer' : 'cursor-default'} ${border ? 'border-b border-slate-100 dark:border-white/5' : ''} transition-colors duration-300`}>
+      <div style={{ background: isDanger ? (theme === 'dark' ? 'rgba(239,68,68,0.1)' : '#fee2e2') : `${color}${theme === 'dark' ? '15' : '20'}` }} className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-colors duration-300">
+        <Icon style={{ color: isDanger ? '#ef4444' : color }} className="w-[18px] h-[18px]" />
       </div>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <p style={{ fontSize: '14px', fontWeight: 600, color: isDanger ? '#fca5a5' : '#f1f5f9' }}>{title}</p>
-        {subtitle && <p style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>{subtitle}</p>}
+      <div className="flex-1 min-w-0">
+        <p className={`text-[14px] font-semibold ${isDanger ? 'text-red-500 dark:text-red-400' : 'text-slate-900 dark:text-slate-100'} transition-colors duration-300`}>{title}</p>
+        {subtitle && <p className="text-[12px] text-slate-500 dark:text-slate-400 mt-0.5 transition-colors duration-300">{subtitle}</p>}
       </div>
-      {right || (onClick && <ChevronRight style={{ width: 16, height: 16, color: '#475569' }} />)}
+      {right || (onClick && <ChevronRight className="w-4 h-4 text-slate-400 dark:text-slate-500" />)}
     </motion.div>
   )
 
   return (
-    <div style={{ padding: '20px', maxWidth: '600px', margin: '0 auto', width: '100%', height: '100%', overflowY: 'auto' }}>
+    <div className="w-full h-full p-5 max-w-[600px] mx-auto overflow-y-auto">
       <Section title="Account">
         <SettingRow icon={Activity} title="Your Activity" subtitle="Manage deleted and hidden content" color="#38bdf8" onClick={() => setShowActivity(true)} />
         <SettingRow icon={Shield} title="Privacy & Security" subtitle="Manage blocked users and visibility" color="#34d399" onClick={() => setShowPrivacy(true)} />
@@ -370,7 +358,13 @@ export default function SettingsView({ profile, session }) {
 
       <Section title="Preferences">
         <SettingRow icon={Bell} title="Notifications" subtitle="Push and email alert settings" color="#f59e0b" onClick={() => setShowNotif(true)} />
-        <SettingRow icon={theme === 'dark' ? Moon : Sun} title="Appearance" subtitle="Customize the interface" color="#60a5fa" border={false} onClick={toggleTheme} right={<span style={{ fontSize: '12px', color: '#3b82f6', fontWeight: 600, background: 'rgba(59,130,246,0.15)', padding: '4px 8px', borderRadius: '6px', cursor: 'pointer' }}>{theme === 'dark' ? 'Dark Theme' : 'Light Theme'}</span>} />
+        <SettingRow icon={theme === 'dark' ? Moon : Sun} title="Appearance" subtitle="Customize the interface" color="#60a5fa" border={false} onClick={toggleTheme} right={
+          <motion.div
+            style={{ width: 44, height: 24, borderRadius: '12px', background: theme === 'dark' ? '#3b82f6' : 'rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', padding: '2px', cursor: 'pointer', justifyContent: theme === 'dark' ? 'flex-end' : 'flex-start' }}
+          >
+            <motion.div layout transition={{ type: 'spring', stiffness: 700, damping: 30 }} style={{ width: 20, height: 20, borderRadius: '10px', background: '#fff', boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }} />
+          </motion.div>
+        } />
       </Section>
 
       <Section title="Danger Zone">
@@ -378,9 +372,9 @@ export default function SettingsView({ profile, session }) {
         <SettingRow icon={UserX} title="Delete Account" subtitle="Permanently remove your data" isDanger={true} border={false} onClick={() => setShowDanger(true)} />
       </Section>
 
-      <div style={{ textAlign: 'center', marginTop: '30px', paddingBottom: '30px' }}>
-        <p style={{ fontSize: '12px', color: '#475569' }}>MNIT Chat v0.0.1 Beta</p>
-        <p style={{ fontSize: '11px', color: '#334155', marginTop: '4px' }}>Made for MNIT Students</p>
+      <div className="text-center mt-8 pb-8 transition-colors duration-300">
+        <p className="text-[12px] text-slate-500 dark:text-slate-400">MNIT Chat v0.0.1 Beta</p>
+        <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">Made for MNIT Students</p>
       </div>
 
       <AnimatePresence>
