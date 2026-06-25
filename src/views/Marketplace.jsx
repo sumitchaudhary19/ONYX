@@ -384,6 +384,7 @@ export default function Marketplace({ profile, onClose }) {
   const [editItem, setEditItem] = useState(null)
   const navigate = useNavigate()
   const [toast, setToast] = useState(null)
+  const [intentItem, setIntentItem] = useState(null) // buyer-intent modal
 
   const fetchItems = useCallback(async () => {
     setLoading(true)
@@ -421,18 +422,47 @@ export default function Marketplace({ profile, onClose }) {
       onClose()
       navigate(`/chat/room/${item.seller_id}`, { state: { fromShop: true, item: { id: item.id, title: item.title, price: item.price, seller_id: item.seller_id } } })
     } else {
-      // Not friends: insert into notifications table and show toast
-      await supabase.from('notifications').insert({
-        receiver_id: item.seller_id,
-        sender_id: profile.id,
-        type: 'marketplace_interest',
-        message: `${profile.first_name || 'Someone'} is interested to buy your ${item.title}.`,
-        metadata: { item_id: item.id, auto_msg: autoMsg }
-      })
-
-      setToast("Interest sent! The seller will be notified to connect with you.")
-      setTimeout(() => setToast(null), 4000)
+      // Not friends: show the Intent Modal
+      setIntentItem(item)
     }
+  }
+
+  const handleSendIntent = async () => {
+    if (!intentItem) return
+    try {
+      // Check if a pending request already exists
+      const { data: existing } = await supabase
+        .from('friend_requests')
+        .select('id, status')
+        .or(`and(sender_id.eq.${profile.id},receiver_id.eq.${intentItem.seller_id}),and(sender_id.eq.${intentItem.seller_id},receiver_id.eq.${profile.id})`)
+        .in('status', ['pending'])
+        .limit(1)
+        .maybeSingle()
+
+      if (existing) {
+        setToast('Request already sent! Waiting for seller to accept.')
+      } else {
+        // Send friend request with marketplace metadata
+        await supabase.from('friend_requests').insert({
+          sender_id: profile.id,
+          receiver_id: intentItem.seller_id,
+          status: 'pending',
+          metadata: {
+            source: 'mnit_shop',
+            item_id: intentItem.id,
+            item_name: intentItem.title,
+            price: intentItem.price,
+            buyer_name: [profile.first_name, profile.last_name].filter(Boolean).join(' ') || profile.username || 'Someone'
+          }
+        })
+        setToast('Connect request sent! You\'ll be able to chat once the seller accepts.')
+      }
+    } catch (err) {
+      console.error('[Marketplace] sendIntent:', err)
+      setToast('Failed to send request. Try again.')
+    }
+    setIntentItem(null)
+    setTimeout(() => setToast(null), 4000)
   }
 
   const handleMarkSold = async (id) => {
@@ -583,6 +613,74 @@ export default function Marketplace({ profile, onClose }) {
               setTimeout(() => setToast(null), 3000)
             }} 
           />
+        )}
+      </AnimatePresence>
+
+      {/* ═══ BUYER INTENT MODAL ═══ */}
+      <AnimatePresence>
+        {intentItem && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            onClick={() => setIntentItem(null)}
+            style={{ position: 'fixed', inset: 0, zIndex: 9800, background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(12px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}
+          >
+            <motion.div
+              initial={{ scale: 0.88, y: 24 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.88, y: 24 }}
+              transition={{ type: 'spring', stiffness: 360, damping: 32 }}
+              onClick={e => e.stopPropagation()}
+              style={{
+                width: '100%', maxWidth: '380px',
+                background: 'linear-gradient(180deg, #0d1630 0%, #080e22 100%)',
+                border: '1px solid rgba(255,255,255,0.1)', borderRadius: '24px',
+                padding: '24px', boxShadow: '0 24px 80px rgba(0,0,0,0.6), 0 0 40px rgba(59,130,246,0.15)',
+                display: 'flex', flexDirection: 'column', gap: '18px'
+              }}
+            >
+              {/* Header */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{ width: 40, height: 40, borderRadius: '13px', background: 'linear-gradient(135deg, rgba(59,130,246,0.2), rgba(37,99,235,0.1))', border: '1px solid rgba(59,130,246,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 16px rgba(59,130,246,0.3)' }}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4-4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '17px', fontWeight: 800, color: '#f1f5f9', margin: 0 }}>Connect to Proceed</h3>
+                  <p style={{ fontSize: '11px', color: '#64748b', margin: '2px 0 0', fontWeight: 500 }}>One-time verification</p>
+                </div>
+              </div>
+
+              {/* Body */}
+              <p style={{ fontSize: '13px', color: '#94a3b8', lineHeight: 1.65, margin: 0 }}>
+                To protect our MNIT community from spam, you need to connect with the seller first. Send a request to ask about <span style={{ color: '#f1f5f9', fontWeight: 700 }}>"{intentItem.title}"</span>?
+              </p>
+
+              {/* Item preview */}
+              <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '14px', padding: '12px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <p style={{ fontSize: '14px', fontWeight: 700, color: '#f1f5f9', margin: 0 }}>{intentItem.title}</p>
+                  <p style={{ fontSize: '12px', color: '#64748b', margin: '2px 0 0' }}>MNIT Shop Listing</p>
+                </div>
+                <p style={{ fontSize: '18px', fontWeight: 900, color: '#a78bfa', margin: 0 }}>₹{parseFloat(intentItem.price).toLocaleString('en-IN')}</p>
+              </div>
+
+              {/* Actions */}
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <motion.button
+                  onClick={handleSendIntent}
+                  whileTap={{ scale: 0.97 }}
+                  style={{ flex: 2, padding: '14px', borderRadius: '14px', border: 'none', background: 'linear-gradient(135deg, #2563eb, #1d4ed8)', color: '#fff', fontSize: '14px', fontWeight: 700, cursor: 'pointer', boxShadow: '0 6px 20px rgba(37,99,235,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+                  Send Request & Ask
+                </motion.button>
+                <motion.button
+                  onClick={() => setIntentItem(null)}
+                  whileTap={{ scale: 0.97 }}
+                  style={{ flex: 1, padding: '14px', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.05)', color: '#94a3b8', fontSize: '14px', fontWeight: 600, cursor: 'pointer' }}
+                >
+                  Cancel
+                </motion.button>
+              </div>
+            </motion.div>
+          </motion.div>
         )}
       </AnimatePresence>
 

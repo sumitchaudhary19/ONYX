@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Bell, Check, X, UserPlus, Users, Inbox } from 'lucide-react'
+import { Bell, Check, X, UserPlus, Users, Inbox, ShoppingBag } from 'lucide-react'
 import { supabase } from '../supabaseClient'
 
 const GRADS=['linear-gradient(135deg,#3b82f6,#06b6d4)','linear-gradient(135deg,#8b5cf6,#ec4899)','linear-gradient(135deg,#10b981,#14b8a6)','linear-gradient(135deg,#f59e0b,#f97316)','linear-gradient(135deg,#a855f7,#7c3aed)']
@@ -155,7 +155,7 @@ function NotificationsInner({ profile }) {
   async function fetchFriendReqs() {
     const { data, error } = await supabase
       .from('friend_requests')
-      .select(`id,sender_id,created_at`)
+      .select(`id,sender_id,created_at,metadata`)
       .eq('receiver_id', profile.id)
       .eq('status','pending')
       .order('created_at',{ascending:false})
@@ -213,7 +213,6 @@ function NotificationsInner({ profile }) {
     return ()=>{ supabase.removeChannel(ch1); supabase.removeChannel(ch2) }
   }
 
-  /* ── Accept/Decline friend request ── */
   const handleFriendAction = async (reqId, action) => {
     setActing(p=>({...p,[reqId]:action==='accepted'?'accepting':'declining'}))
     try {
@@ -221,15 +220,39 @@ function NotificationsInner({ profile }) {
       const {error}=await supabase.from('friend_requests').update({status:action}).eq('id',reqId)
       if(error) throw error
 
-      // When accepted, notify the sender so they know they can connect
       if (action === 'accepted' && req?.sender_id) {
-        await supabase.from('notifications').insert({
-          receiver_id: req.sender_id,
-          sender_id: profile.id,
-          type: 'follow_accepted',
-          message: `${profile.first_name || profile.username || 'Someone'} accepted your follow request, now you can connect with them!`,
-          metadata: {}
-        }).catch(() => {}) // non-fatal
+        // Check if this was a marketplace-sourced request
+        const meta = req.metadata
+        const isShopRequest = meta?.source === 'mnit_shop'
+
+        if (isShopRequest && meta.item_name && meta.price) {
+          // Ghost Chat: auto-insert a message from the buyer to the seller
+          const buyerName = meta.buyer_name || req.sender?.first_name || 'Someone'
+          const autoMsg = `Hey! I'm interested in buying your ${meta.item_name} for ₹${parseFloat(meta.price).toLocaleString('en-IN')}. Is it still available?`
+          await supabase.from('messages').insert({
+            sender_id: req.sender_id,
+            receiver_id: profile.id,
+            content: autoMsg
+          }).catch(err => console.error('[Notif] ghost chat insert:', err))
+
+          // Notify the buyer that their request was accepted
+          await supabase.from('notifications').insert({
+            receiver_id: req.sender_id,
+            sender_id: profile.id,
+            type: 'follow_accepted',
+            message: `${profile.first_name || profile.username || 'The seller'} accepted your request for "${meta.item_name}". Start chatting now!`,
+            metadata: { source: 'mnit_shop', item_name: meta.item_name }
+          }).catch(() => {})
+        } else {
+          // Normal friend request acceptance notification
+          await supabase.from('notifications').insert({
+            receiver_id: req.sender_id,
+            sender_id: profile.id,
+            type: 'follow_accepted',
+            message: `${profile.first_name || profile.username || 'Someone'} accepted your follow request, now you can connect with them!`,
+            metadata: {}
+          }).catch(() => {})
+        }
       }
 
       setFriendReqs(p=>p.filter(r=>r.id!==reqId))
@@ -287,23 +310,36 @@ function NotificationsInner({ profile }) {
 
         <AnimatePresence mode="popLayout">
           {/* ── Friend Requests ── */}
-          {friendReqs.map((req,i)=>(
+          {friendReqs.map((req,i)=>{
+            const isShop = req.metadata?.source === 'mnit_shop'
+            const senderName = req.sender?.first_name || 'Someone'
+            const notifText = isShop
+              ? `${senderName} wants to buy your ${req.metadata.item_name || 'item'}. Accept to start chatting!`
+              : `${senderName} wants to be your friend.`
+            const tagText = isShop ? 'Buyer Request' : 'Friend Request'
+            const tagColor = isShop ? '#a78bfa' : '#60a5fa'
+            const TagIcon = isShop ? ShoppingBag : UserPlus
+
+            return (
             <motion.div key={`fr-${req.id}`} layout initial={{opacity:0,y:14,scale:0.97}} animate={{opacity:1,y:0,scale:1}} exit={{opacity:0,x:40,scale:0.95}}
-              transition={{delay:i*0.04,duration:0.28}} style={{padding:'16px',marginBottom:'8px',borderRadius:'20px',border:'1px solid rgba(255,255,255,0.08)',background:'rgba(255,255,255,0.03)'}}>
+              transition={{delay:i*0.04,duration:0.28}} style={{padding:'16px',marginBottom:'8px',borderRadius:'20px',border: isShop ? '1px solid rgba(167,139,250,0.15)' : '1px solid rgba(255,255,255,0.08)',background: isShop ? 'rgba(167,139,250,0.04)' : 'rgba(255,255,255,0.03)'}}>
               <div style={{display:'flex',alignItems:'center',gap:'12px'}}>
                 <Avatar p={req.sender} i={i}/>
                 <div style={{flex:1,minWidth:0}}>
                   <div style={{display:'flex',alignItems:'center',gap:'5px',marginBottom:'3px'}}>
-                    <UserPlus style={{width:11,height:11,color:'#60a5fa'}}/>
-                    <span style={{fontSize:'9px',fontWeight:700,color:'#60a5fa',textTransform:'uppercase',letterSpacing:'0.07em'}}>Friend Request</span>
+                    <TagIcon style={{width:11,height:11,color:tagColor}}/>
+                    <span style={{fontSize:'9px',fontWeight:700,color:tagColor,textTransform:'uppercase',letterSpacing:'0.07em'}}>{tagText}</span>
                   </div>
-                  <p style={{fontSize:'14px',fontWeight:600,color:'#f0f4ff',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{req.sender?.first_name||'Someone'} wants to be your friend.</p>
+                  <p style={{fontSize:'14px',fontWeight:600,color:'#f0f4ff',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{notifText}</p>
+                  {isShop && req.metadata.price && (
+                    <p style={{fontSize:'12px',color:'#a78bfa',marginTop:2,fontWeight:700}}>₹{parseFloat(req.metadata.price).toLocaleString('en-IN')}</p>
+                  )}
                   <p style={{fontSize:'11px',color:'#64748b',marginTop:2}}>@{req.sender?.username||'—'} · {fmtTime(req.created_at)}</p>
                 </div>
               </div>
               <ActionButtons id={req.id} onAccept={id=>handleFriendAction(id,'accepted')} onDecline={id=>handleFriendAction(id,'declined')} acting={acting}/>
             </motion.div>
-          ))}
+          )})}
 
           {/* ── Group Requests ── */}
           {groupReqs.map((req,i)=>{
