@@ -262,7 +262,7 @@ export default function MainLayout({ profile, session }) {
       </aside>
 
       {/* ═══ CONTENT AREA ═══ */}
-      <main className="flex-1 w-full h-[calc(100dvh-68px)] md:h-full relative overflow-hidden bg-slate-50 dark:bg-[#060b18] transition-colors duration-300">
+      <main className="flex-1 flex flex-col w-full h-[calc(100dvh-68px)] md:h-full relative overflow-hidden bg-slate-50 dark:bg-[#060b18] transition-colors duration-300">
         {/* subtle gradient glow */}
         <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-200/40 dark:bg-blue-600/10 rounded-full blur-[120px] pointer-events-none transition-colors duration-300" />
         
