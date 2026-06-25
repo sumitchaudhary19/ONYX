@@ -217,34 +217,30 @@ function NotificationsInner({ profile }) {
     setActing(p=>({...p,[reqId]:action==='accepted'?'accepting':'declining'}))
     try {
       const req = friendReqs.find(r => r.id === reqId)
-      const {error}=await supabase.from('friend_requests').update({status:action}).eq('id',reqId)
-      if(error) throw error
 
-      if (action === 'accepted' && req?.sender_id) {
-        // Check if this was a marketplace-sourced request
+      if (action === 'accepted' && req?.metadata?.source === 'mnit_shop') {
+        // ── Marketplace request: use RPC to bypass RLS for ghost chat ──
+        const { error } = await supabase.rpc('accept_shop_request', {
+          p_request_id: reqId,
+          p_seller_id: profile.id
+        })
+        if (error) throw error
+
+        // Non-critical: send acceptance notification to the buyer
         const meta = req.metadata
-        const isShopRequest = meta?.source === 'mnit_shop'
+        await supabase.from('notifications').insert({
+          receiver_id: req.sender_id,
+          sender_id: profile.id,
+          type: 'follow_accepted',
+          message: `${profile.first_name || profile.username || 'The seller'} accepted your request for "${meta.item_name}". Start chatting now!`,
+          metadata: { source: 'mnit_shop', item_name: meta.item_name }
+        }).catch(() => {})
+      } else {
+        // ── Normal friend request: standard update ──
+        const { error } = await supabase.from('friend_requests').update({ status: action }).eq('id', reqId)
+        if (error) throw error
 
-        if (isShopRequest && meta.item_name && meta.price) {
-          // Ghost Chat: auto-insert a message from the buyer to the seller
-          const buyerName = meta.buyer_name || req.sender?.first_name || 'Someone'
-          const autoMsg = `Hey! I'm interested in buying your ${meta.item_name} for ₹${parseFloat(meta.price).toLocaleString('en-IN')}. Is it still available?`
-          await supabase.from('messages').insert({
-            sender_id: req.sender_id,
-            receiver_id: profile.id,
-            content: autoMsg
-          }).catch(err => console.error('[Notif] ghost chat insert:', err))
-
-          // Notify the buyer that their request was accepted
-          await supabase.from('notifications').insert({
-            receiver_id: req.sender_id,
-            sender_id: profile.id,
-            type: 'follow_accepted',
-            message: `${profile.first_name || profile.username || 'The seller'} accepted your request for "${meta.item_name}". Start chatting now!`,
-            metadata: { source: 'mnit_shop', item_name: meta.item_name }
-          }).catch(() => {})
-        } else {
-          // Normal friend request acceptance notification
+        if (action === 'accepted' && req?.sender_id) {
           await supabase.from('notifications').insert({
             receiver_id: req.sender_id,
             sender_id: profile.id,
