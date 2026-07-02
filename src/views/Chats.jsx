@@ -356,13 +356,16 @@ export default function Chats({profile}){
     }
   },[profile?.id])
 
+  // Stable dependency: only re-run when the actual friend IDs change, not on every render
+  const friendIdStr = friends.map(f => f.id).sort().join(',')
+
   // When friends load, fetch unread counts + last messages
   useEffect(()=>{
-    if(!friends.length||!profile?.id)return
+    if(!friendIdStr||!profile?.id)return
     fetchUnreadAndLastMessages()
     setupTypingListeners()
     return()=>cleanupTypingListeners()
-  },[friends,profile?.id])
+  },[friendIdStr,profile?.id])
 
   async function fetchUnreadAndLastMessages(){
     try{
