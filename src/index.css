@@ -11,31 +11,48 @@ html { height: 100%; }
 body {
   height: 100%;
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
-  background: #060b18;
-  color: #fff;
+  background: #f8fafc;
+  color: #0f172a;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+html.dark body {
+  background: #060b18;
+  color: #fff;
 }
 #root { height: 100%; display: flex; flex-direction: column; }
 
 /* ── Scrollbar ────────────────────────────────────── */
 ::-webkit-scrollbar { width: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 4px; }
-::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.12); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.2); }
+html.dark ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); }
+html.dark ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
 
-/* ── Global design tokens ────────────────────────── */
+/* ── Global design tokens (Light Mode defaults) ──── */
 :root {
+  --bg-primary:   #f8fafc;
+  --bg-card:      rgba(255, 255, 255, 0.85);
+  --bg-card-2:    rgba(241, 245, 249, 0.7);
+  --border:       rgba(0,0,0,0.08);
+  --border-blue:  rgba(59,130,246,0.3);
+  --accent:       #2563eb;
+  --accent-glow:  rgba(37,99,235,0.4);
+  --accent-light: #3b82f6;
+  --text-primary: #0f172a;
+  --text-muted:   #64748b;
+  --text-dim:     #94a3b8;
+}
+/* ── Dark Mode token overrides ───────────────────── */
+html.dark {
   --bg-primary:   #060b18;
   --bg-card:      rgba(13, 22, 45, 0.85);
   --bg-card-2:    rgba(17, 28, 55, 0.7);
   --border:       rgba(255,255,255,0.08);
-  --border-blue:  rgba(59,130,246,0.3);
-  --accent:       #2563eb;
-  --accent-glow:  rgba(37,99,235,0.4);
   --accent-light: #60a5fa;
   --text-primary: #f0f4ff;
-  --text-muted:   #64748b;
   --text-dim:     #334155;
 }
 
@@ -57,10 +74,16 @@ body {
 
 /* ── Glass card ──────────────────────────────────── */
 .glass-card {
-  background: rgba(10, 18, 40, 0.8);
+  background: rgba(255, 255, 255, 0.7);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255,255,255,0.09);
+  border: 1px solid rgba(0,0,0,0.08);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.5);
+  transition: background 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+}
+html.dark .glass-card {
+  background: rgba(10, 18, 40, 0.8);
+  border-color: rgba(255,255,255,0.09);
   box-shadow: 0 20px 60px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.05);
 }
 
@@ -131,10 +154,14 @@ body {
   to   { background-position:  200% 0; }
 }
 .skeleton {
-  background: linear-gradient(90deg, rgba(255,255,255,0.04) 25%, rgba(255,255,255,0.08) 50%, rgba(255,255,255,0.04) 75%);
+  background: linear-gradient(90deg, rgba(0,0,0,0.04) 25%, rgba(0,0,0,0.08) 50%, rgba(0,0,0,0.04) 75%);
   background-size: 200% 100%;
   animation: shimmer 1.6s ease-in-out infinite;
   border-radius: 10px;
+}
+html.dark .skeleton {
+  background: linear-gradient(90deg, rgba(255,255,255,0.04) 25%, rgba(255,255,255,0.08) 50%, rgba(255,255,255,0.04) 75%);
+  background-size: 200% 100%;
 }
 
 /* ── Fade/slide-up animations ──────────────────────── */
