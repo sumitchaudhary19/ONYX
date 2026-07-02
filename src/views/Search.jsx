@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Search as SearchIcon, ChevronRight, X, Clock, Filter, Trash2 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
+import { sanitizeSearchQuery } from '../utils/sanitize'
 
 const GRADIENTS = [
   'linear-gradient(135deg,#3b82f6,#06b6d4)',
@@ -125,12 +126,14 @@ export default function SearchView({ profile }) {
 
   async function runSearch(q, years) {
     setSearching(true)
+    const safe = sanitizeSearchQuery(q)
+    if (!safe) { setSearching(false); return }
     try {
       let req = supabase
         .from('profiles')
         .select('id, first_name, last_name, username, avatar_url, bio')
         .neq('id', profile.id)
-        .or(`username.ilike.%${q}%,first_name.ilike.%${q}%,last_name.ilike.%${q}%`)
+        .or(`username.ilike.%${safe}%,first_name.ilike.%${safe}%,last_name.ilike.%${safe}%`)
       
       if (years && years.length > 0) {
         req = req.in('btech_year', years)

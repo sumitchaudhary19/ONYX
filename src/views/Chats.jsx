@@ -1,6 +1,7 @@
 import{useEffect,useState,useRef,useCallback}from'react'
 import{motion,AnimatePresence}from'framer-motion'
 import{MessageCircle,Users,Eye,EyeOff,Trash2,X,Search,Clock}from'lucide-react'
+import{sanitizeSearchQuery}from'../utils/sanitize'
 
 /* ── Chat Search Modal ── */
 function ChatSearchModal({ profile, onClose }) {
@@ -40,15 +41,17 @@ function ChatSearchModal({ profile, onClose }) {
 
   async function runSearch(q) {
     setLoading(true)
+    const safe = sanitizeSearchQuery(q)
+    if (!safe) { setLoading(false); return }
     try {
       // Search Users
-      const { data: users } = await supabase.from('profiles').select('id, first_name, last_name, username, avatar_url').neq('id', profile.id).or(`username.ilike.%${q}%,first_name.ilike.%${q}%,last_name.ilike.%${q}%`).limit(5)
+      const { data: users } = await supabase.from('profiles').select('id, first_name, last_name, username, avatar_url').neq('id', profile.id).or(`username.ilike.%${safe}%,first_name.ilike.%${safe}%,last_name.ilike.%${safe}%`).limit(5)
       
       // Search Groups
-      const { data: groups } = await supabase.from('groups').select('id, name, avatar_url').ilike('name', `%${q}%`).limit(5)
+      const { data: groups } = await supabase.from('groups').select('id, name, avatar_url').ilike('name', `%${safe}%`).limit(5)
       
       // Search Messages
-      const { data: messages } = await supabase.from('messages').select('id, sender_id, receiver_id, content, created_at, group_id, profiles:sender_id(id, first_name, last_name)').ilike('content', `%${q}%`).or(`sender_id.eq.${profile.id},receiver_id.eq.${profile.id}`).limit(10)
+      const { data: messages } = await supabase.from('messages').select('id, sender_id, receiver_id, content, created_at, group_id, profiles:sender_id(id, first_name, last_name)').ilike('content', `%${safe}%`).or(`sender_id.eq.${profile.id},receiver_id.eq.${profile.id}`).limit(10)
       
       setResults({ users: users || [], groups: groups || [], messages: messages || [] })
     } catch(e) { console.error(e) }
