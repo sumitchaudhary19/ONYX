@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabaseClient'
 import { PostCard } from './Feed'
-import { Sparkles, Aperture, Eye, X, Play, Trash2 } from 'lucide-react'
+import { Sparkles, Aperture, Eye, X, Play, Trash2, Users, UserPlus } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 
 function StoryViewsModal({ story, onClose }) {
@@ -133,6 +133,9 @@ export default function HomeFeed({ profile }) {
   const [showStoryViewer, setShowStoryViewer] = useState(false)
   const [hasMore, setHasMore] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
+  const [showSuggestions, setShowSuggestions] = useState(false)
+  const [suggestions, setSuggestions] = useState([])
+  const [followingAll, setFollowingAll] = useState(false)
 
   useEffect(() => {
     const load = async () => {
@@ -195,6 +198,60 @@ export default function HomeFeed({ profile }) {
     load()
   }, [profile?.id])
 
+  useEffect(() => {
+    if (!profile?.id) return
+    const hasSeen = localStorage.getItem(`onyx_suggestions_seen_${profile.id}`)
+    if (!hasSeen) {
+      fetchSuggestions()
+    }
+  }, [profile?.id])
+
+  async function fetchSuggestions() {
+    try {
+      let query = supabase.from('profiles')
+        .select('id, first_name, last_name, username, avatar_url, branch, btech_year, section')
+        .neq('id', profile.id)
+      
+      if (profile.branch) query = query.eq('branch', profile.branch)
+      if (profile.btech_year === '1st Year' && profile.section) {
+        query = query.eq('section', profile.section)
+      }
+      
+      const { data } = await query.limit(10)
+      if (data && data.length > 0) {
+        setSuggestions(data)
+        setShowSuggestions(true)
+      } else {
+        // Mark as seen even if no suggestions
+        localStorage.setItem(`onyx_suggestions_seen_${profile.id}`, 'true')
+      }
+    } catch (err) {
+      console.error('[HomeFeed] fetchSuggestions:', err)
+    }
+  }
+
+  async function followAll() {
+    setFollowingAll(true)
+    try {
+      const requests = suggestions.map(s => ({
+        sender_id: profile.id,
+        receiver_id: s.id,
+        status: 'pending'
+      }))
+      await supabase.from('friend_requests').insert(requests)
+    } catch (err) {
+      console.error('[HomeFeed] followAll:', err)
+    }
+    localStorage.setItem(`onyx_suggestions_seen_${profile.id}`, 'true')
+    setFollowingAll(false)
+    setShowSuggestions(false)
+  }
+
+  function dismissSuggestions() {
+    localStorage.setItem(`onyx_suggestions_seen_${profile.id}`, 'true')
+    setShowSuggestions(false)
+  }
+
   const loadMore = async () => {
     if (loadingMore || !hasMore) return
     setLoadingMore(true)
@@ -246,8 +303,8 @@ export default function HomeFeed({ profile }) {
             <Sparkles className="w-5 h-5 text-white" />
           </div>
           <div>
-            <h2 className="text-[18px] font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-violet-400 drop-shadow-[0_0_8px_rgba(96,165,250,0.4)] tracking-wide">GLOBAL FEED</h2>
-            <p className="text-[11px] text-slate-400 font-medium tracking-wide">LATEST FROM EVERYONE</p>
+            <h2 className="text-[18px] font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-violet-400 drop-shadow-[0_0_8px_rgba(96,165,250,0.4)] tracking-wide">MNIT FEED</h2>
+            <p className="text-[11px] text-slate-400 font-medium tracking-wide">LATEST FROM MNIT</p>
           </div>
         </div>
       </div>
@@ -289,6 +346,83 @@ export default function HomeFeed({ profile }) {
           </motion.button>
         )}
       </div>
+
+      {/* Smart Follow Suggestions Modal */}
+      <AnimatePresence>
+        {showSuggestions && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="absolute inset-0 z-50 bg-black/70 backdrop-blur-md flex items-center justify-center p-4">
+            <motion.div
+              initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }}
+              transition={{ type: 'spring', stiffness: 320, damping: 28 }}
+              className="w-full max-w-md rounded-3xl border border-white/10 p-6 shadow-2xl"
+              style={{ background: 'linear-gradient(180deg, #0d1630 0%, #080e22 100%)', boxShadow: '0 24px 80px rgba(0,0,0,0.6), 0 0 40px rgba(124,58,237,0.15)' }}>
+              
+              {/* Header */}
+              <div className="flex items-center justify-between mb-5">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-600 to-blue-600 flex items-center justify-center shadow-[0_0_16px_rgba(124,58,237,0.5)]">
+                    <Users className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-[16px] font-bold text-white">Find Your Batchmates</h3>
+                    <p className="text-[11px] text-slate-400">People from your branch{profile.section ? ` · Section ${profile.section}` : ''}</p>
+                  </div>
+                </div>
+                <motion.button whileTap={{ scale: 0.9 }} onClick={dismissSuggestions}
+                  className="w-8 h-8 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center text-slate-400 hover:text-white">
+                  <X className="w-4 h-4" />
+                </motion.button>
+              </div>
+
+              {/* User list */}
+              <div className="flex flex-col gap-2 max-h-[300px] overflow-y-auto pr-1 mb-5">
+                {suggestions.map((s, i) => {
+                  const name = [s.first_name, s.last_name].filter(Boolean).join(' ')
+                  const initials = [s.first_name, s.last_name].filter(Boolean).map(n => n[0]?.toUpperCase()).join('')
+                  return (
+                    <motion.div key={s.id} initial={{ opacity: 0, x: -12 }} animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: i * 0.06 }}
+                      className="flex items-center gap-3 p-3 rounded-2xl bg-white/[0.03] border border-white/[0.06] hover:bg-white/[0.06] transition-colors">
+                      {s.avatar_url
+                        ? <img src={s.avatar_url} alt="" className="w-10 h-10 rounded-xl object-cover shrink-0" />
+                        : <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-violet-600 flex items-center justify-center text-xs font-bold text-white shrink-0">{initials}</div>
+                      }
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[14px] font-semibold text-slate-100 truncate">{name}</p>
+                        <p className="text-[11px] text-slate-500">@{s.username || '\u2014'} · {s.branch || ''}</p>
+                      </div>
+                      <UserPlus className="w-4 h-4 text-blue-400 shrink-0" />
+                    </motion.div>
+                  )
+                })}
+              </div>
+
+              {/* Follow All Button */}
+              <motion.button
+                onClick={followAll}
+                disabled={followingAll}
+                whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+                className="w-full py-3.5 rounded-2xl border-none text-[14px] font-bold text-white flex items-center justify-center gap-2 cursor-pointer"
+                style={{
+                  background: 'linear-gradient(135deg, #2563eb, #7c3aed)',
+                  boxShadow: '0 8px 24px rgba(37,99,235,0.4), 0 0 40px rgba(124,58,237,0.2)',
+                }}>
+                {followingAll ? (
+                  <><svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" className="opacity-25"/><path fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/></svg> Sending Requests…</>
+                ) : (
+                  <><UserPlus className="w-4 h-4" /> Follow All Batchmates</>
+                )}
+              </motion.button>
+
+              <button onClick={dismissSuggestions}
+                className="w-full mt-3 py-2 text-[12px] text-slate-500 hover:text-slate-300 bg-transparent border-none cursor-pointer transition-colors">
+                Maybe later
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Own Story FAB */}
       <AnimatePresence>

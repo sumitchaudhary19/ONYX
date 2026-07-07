@@ -109,6 +109,7 @@ const GLOW_STYLES = {
 export default function MainLayout({ profile, session }) {
   const [activeTab,    setActiveTab   ] = useState('home')
   const [pendingCount, setPendingCount] = useState(0)
+  const [unreadChatCount, setUnreadChatCount] = useState(0)
   const [showSnap,     setShowSnap    ] = useState(false)
   const [showPost,     setShowPost    ] = useState(false)
   const [showGroup,    setShowGroup   ] = useState(false)
@@ -127,6 +128,7 @@ export default function MainLayout({ profile, session }) {
   useEffect(() => {
     if (!profile?.id) return
     fetchPendingCount()
+    fetchUnreadChatCount()
     const ch1 = supabase.channel(`pending-badge-fr-${profile.id}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'friend_requests', filter: `receiver_id=eq.${profile.id}` }, fetchPendingCount)
       .subscribe()
@@ -142,7 +144,14 @@ export default function MainLayout({ profile, session }) {
       }
     })
 
-    return () => { supabase.removeChannel(ch1); supabase.removeChannel(ch2); supabase.removeChannel(presenceCh) }
+    const chatBadgeCh = supabase.channel(`chat-badge-${profile.id}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `receiver_id=eq.${profile.id}` },
+        () => fetchUnreadChatCount())
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'messages', filter: `receiver_id=eq.${profile.id}` },
+        () => fetchUnreadChatCount())
+      .subscribe()
+
+    return () => { supabase.removeChannel(ch1); supabase.removeChannel(ch2); supabase.removeChannel(presenceCh); supabase.removeChannel(chatBadgeCh) }
   }, [profile?.id])
 
   async function fetchPendingCount() {
@@ -157,10 +166,24 @@ export default function MainLayout({ profile, session }) {
     }
   }
 
+  async function fetchUnreadChatCount() {
+    try {
+      const { count } = await supabase
+        .from('messages')
+        .select('id', { count: 'exact', head: true })
+        .eq('receiver_id', profile.id)
+        .is('read_at', null)
+      setUnreadChatCount(count ?? 0)
+    } catch (err) {
+      console.error('[MainLayout] unreadChatCount:', err)
+    }
+  }
+
   const handleTabChange = (id) => {
     if (id === 'snap') { setShowSnap(true); return }
     setActiveTab(id)
     if (id === 'notifications') setPendingCount(0)
+    if (id === 'chats') setUnreadChatCount(0)
   }
 
   const initials = [profile?.firstName, profile?.lastName]
@@ -180,7 +203,8 @@ export default function MainLayout({ profile, session }) {
         {/* Nav items */}
         {TABS.map(({ id, label, Icon, glow }) => {
           const isActive  = activeTab === id
-          const showBadge = id === 'notifications' && pendingCount > 0 && !isActive
+          const showBadge = (id === 'notifications' && pendingCount > 0 && !isActive) || (id === 'chats' && unreadChatCount > 0 && !isActive)
+          const badgeCount = id === 'notifications' ? pendingCount : id === 'chats' ? unreadChatCount : 0
           const glowStyle = glow ? GLOW_STYLES[glow] : null
 
           return (
@@ -211,7 +235,7 @@ export default function MainLayout({ profile, session }) {
                       initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }}
                       className="absolute -top-1 -right-1.5 min-w-[16px] h-4 rounded-full bg-red-500 border-2 border-[#060b18] flex items-center justify-center text-[9px] font-bold text-white px-1"
                     >
-                      {pendingCount > 9 ? '9+' : pendingCount}
+                      {badgeCount > 9 ? '9+' : badgeCount}
                     </motion.div>
                   )}
                 </AnimatePresence>

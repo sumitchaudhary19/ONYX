@@ -509,7 +509,15 @@ export default function Chats({profile}){
   const startPress=(friend)=>{ timerRef.current=setTimeout(()=>setLongPressed(friend),1000) }
   const endPress=()=>clearTimeout(timerRef.current)
 
-  const visibleFriends=friends.filter(f=>!hiddenIds.has(f.id))
+  const visibleFriends = friends
+    .filter(f => !hiddenIds.has(f.id))
+    .sort((a, b) => {
+      const aMsg = lastMessages[a.id]
+      const bMsg = lastMessages[b.id]
+      const aTime = aMsg?.created_at ? new Date(aMsg.created_at).getTime() : 0
+      const bTime = bMsg?.created_at ? new Date(bMsg.created_at).getTime() : 0
+      return bTime - aTime // Most recent first
+    })
 
   // Safety guard — must come after ALL hooks to satisfy React's rules of hooks
   if (!profile) return (
@@ -593,7 +601,7 @@ export default function Chats({profile}){
                     onClick={async()=>{ setUnreadCounts(prev=>({...prev,[friend.id]:0})); navigate(`/chat/room/${friend.id}`); await supabase.from('messages').update({read_at:new Date().toISOString()}).eq('receiver_id',profile.id).eq('sender_id',friend.id).is('read_at',null) }}
                     onTouchStart={()=>startPress(friend)} onTouchEnd={endPress} onTouchMove={endPress}
                     onMouseDown={()=>startPress(friend)} onMouseUp={endPress} onMouseLeave={endPress}
-                    style={{display:'flex',alignItems:'center',gap:'14px',padding:'13px 14px',marginBottom:'5px',borderRadius:'20px',border:`1px solid ${unread>0?'rgba(59,130,246,0.25)':'rgba(255,255,255,0.07)'}`,background:unread>0?'rgba(59,130,246,0.05)':'rgba(255,255,255,0.03)',cursor:'pointer',transition:'background 0.2s,box-shadow 0.2s'}}>
+                    style={{display:'flex',alignItems:'center',gap:'14px',padding:'13px 14px',marginBottom:'5px',borderRadius:'20px',border:`1px solid ${unread>0?'rgba(59,130,246,0.25)':'rgba(255,255,255,0.07)'}`,background:unread>0?'rgba(59,130,246,0.08)':'rgba(255,255,255,0.03)',cursor:'pointer',transition:'background 0.2s,box-shadow 0.2s'}}>
                     <FriendAvatar friend={friend} index={i} size={48} isOnline={isOnline}/>
                     <div style={{flex:1,minWidth:0}}>
                       <p style={{fontSize:'15px',fontWeight:unread>0?700:600,color:'#f1f5f9',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{fullName}</p>

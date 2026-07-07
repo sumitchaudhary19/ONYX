@@ -118,18 +118,27 @@ const BRANCHES = [
   { value: 'CE',  label: 'Civil (CE)' },
   { value: 'CHE', label: 'Chemical (CHE)' },
   { value: 'MME', label: 'Metallurgical & Materials (MME)' },
+  { value: 'B.Arch', label: 'Architecture (B.Arch)' },
 ]
 
 /* ─── Onboarding ─────────────────────────────────────── */
 export default function Onboarding({ onComplete }) {
-  const [form, setForm] = useState({ firstName: '', lastName: '', username: '', bio: '', btechYear: '', branch: '', collegeId: '' })
+  const [form, setForm] = useState({ firstName: '', lastName: '', username: '', bio: '', btechYear: '', branch: '', collegeId: '', section: '' })
   const [submitting, setSubmitting] = useState(false)
 
   // Username uniqueness state
   const [usernameStatus, setUsernameStatus] = useState('idle') // 'idle' | 'checking' | 'available' | 'taken' | 'error'
   const debounceRef = useRef(null)
 
-  const set = (key) => (e) => setForm(prev => ({ ...prev, [key]: e.target.value }))
+  const set = (key) => (e) => {
+    const val = e.target.value
+    setForm(prev => {
+      const next = { ...prev, [key]: val }
+      // Clear section when year changes away from 1st Year
+      if (key === 'btechYear' && val !== '1st Year') next.section = ''
+      return next
+    })
+  }
 
   // Debounced username check
   const handleUsernameChange = (e) => {
@@ -185,6 +194,7 @@ export default function Onboarding({ onComplete }) {
         btech_year: form.btechYear,
         branch: form.branch,
         college_id: form.collegeId,
+        section: form.section || null,
       })
       
       if (error) throw error
@@ -338,6 +348,35 @@ export default function Onboarding({ onComplete }) {
               { value: '4th Year', label: '4th Year' },
             ]}
           />
+
+          {/* Section (only for 1st Year) */}
+          <AnimatePresence>
+            {form.btechYear === '1st Year' && (
+              <motion.div
+                key="section-field"
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+                style={{ overflow: 'hidden' }}
+              >
+                <SelectField
+                  id="section" label="Section" value={form.section} onChange={set('section')}
+                  placeholder="Select your section"
+                  options={[
+                    { value: 'A', label: 'Section A' },
+                    { value: 'B', label: 'Section B' },
+                    { value: 'C', label: 'Section C' },
+                    { value: 'D', label: 'Section D' },
+                    { value: 'E', label: 'Section E' },
+                    { value: 'F', label: 'Section F' },
+                    { value: 'G', label: 'Section G' },
+                    { value: 'H', label: 'Section H' },
+                  ]}
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {/* Branch */}
           <SelectField
