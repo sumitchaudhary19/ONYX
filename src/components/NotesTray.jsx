@@ -9,7 +9,7 @@ export function getSmartEmojis(text = '') {
   if (/exam|test|midsem|assignment|sheet/.test(t))  return ['😭', '📚', '✍️', '🥲']
   if (/party|weekend|trip|night/.test(t))           return ['🥳', '🍻', '🔥', '🕺']
   if (/mess|food|nescafe|hungry/.test(t))           return ['🍕', '☕', '🤢', '🍔']
-  return ['😂', '😍', '😲', '🥺', '🔥']
+  return ['😂', '😍', '😲', '🥺']
 }
 
 // ── Quick emoji picker rows ────────────────────────────────────────────────
@@ -51,25 +51,9 @@ function Avatar({ profile, index = 0, size = 44 }) {
 
 function NoteBubble({ text }) {
   return (
-    <div style={{
-      position: 'absolute', bottom: '100%', left: '50%', transform: 'translateX(-50%)',
-      marginBottom: 8, zIndex: 10, pointerEvents: 'none'
-    }}>
-      <div style={{
-        background: 'rgba(15,23,42,0.95)', backdropFilter: 'blur(12px)',
-        border: '1px solid rgba(255,255,255,0.12)', borderRadius: 14,
-        padding: '6px 10px', fontSize: 11, fontWeight: 500, color: '#e2e8f0',
-        lineHeight: 1.4, textAlign: 'center',
-        boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
-        whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 120
-      }}>
-        {text}
-      </div>
-      <div style={{
-        width: 0, height: 0, margin: '0 auto',
-        borderLeft: '5px solid transparent', borderRight: '5px solid transparent',
-        borderTop: '5px solid rgba(255,255,255,0.12)'
-      }} />
+    <div className="absolute -top-12 bg-white text-[#0f172a] text-xs font-semibold px-3 py-1.5 rounded-2xl shadow-xl truncate max-w-[120px] border border-slate-100 flex items-center justify-center z-10">
+      {text}
+      <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-l-[6px] border-r-[6px] border-t-[6px] border-transparent border-t-white" />
     </div>
   )
 }
@@ -235,7 +219,7 @@ function AddNoteModal({ profile, onClose, onSaved }) {
         <button onClick={handleSave} disabled={!text.trim() || saving}
           style={{ width: '100%', padding: '13px 24px', background: text.trim() ? 'linear-gradient(135deg,#3b82f6,#8b5cf6)' : 'rgba(255,255,255,0.05)', border: 'none', borderRadius: 16, color: '#fff', fontSize: 14, fontWeight: 700, cursor: text.trim() ? 'pointer' : 'not-allowed', opacity: saving ? 0.6 : 1, boxShadow: text.trim() ? '0 8px 24px rgba(59,130,246,0.35)' : 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
           {saving ? (
-            <><svg style={{ width: 16, height: 16, animation: 'spin 1s linear infinite' }} fill="none" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" style={{ opacity: 0.25 }}/><path fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/></svg> Sharing…</>
+            <><svg style={{ width: 16, height: 16, animation: 'spin 1s linear infinite' }} fill="none" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" style={{ opacity: 0.25 }}/><path fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/></svg> Sharing...</>
           ) : 'Share Note ✨'}
         </button>
       </motion.div>
@@ -292,14 +276,14 @@ function ReplyNoteModal({ sender, note, currentUserId, onClose }) {
           ))}
         </div>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-          <input autoFocus type="text" placeholder="Send a reply…" value={reply}
+          <input autoFocus type="text" placeholder="Send a reply..." value={reply}
             onChange={e => setReply(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter') sendReply(reply) }}
             style={{ flex: 1, padding: '12px 16px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 16, color: '#f1f5f9', fontSize: 14, outline: 'none' }}
             onFocus={e => { e.target.style.borderColor = '#3b82f6' }}
             onBlur={e => { e.target.style.borderColor = 'rgba(255,255,255,0.12)' }} />
           <motion.button whileTap={{ scale: 0.9 }} onClick={() => sendReply(reply)} disabled={!reply.trim() || sending}
-            style={{ width: 44, height: 44, borderRadius: 14, background: reply.trim() ? 'linear-gradient(135deg,#3b82f6,#8b5cf6)' : 'rgba(255,255,255,0.07)', border: 'none', cursor: reply.trim() ? 'pointer' : 'not-allowed', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, boxShadow: reply.trim() ? '0 4px 16px rgba(59,130,246,0.4)' : 'none' }}>
+            style={{ width: 44, height: 44, borderRadius: 14, background: reply.trim() ? 'linear-gradient(135deg,#3b82f6,#8b5cf6)' : 'rgba(255,255,255,0.07)', border: 'none', cursor: reply.trim() ? 'pointer' : 'not-allowed', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, boxShadow: reply.trim() ? '0 4px 16px rgba(59,130,246,0.4)' : 'none', color: '#fff' }}>
             ↑
           </motion.button>
         </div>
@@ -359,9 +343,10 @@ export default function NotesTray({ profile, friends = [] }) {
     <>
       <div style={{ display: 'flex', gap: 16, overflowX: 'auto', padding: '4px 0 12px', scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' }}>
         <motion.div
-          style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, flexShrink: 0, cursor: 'pointer' }}
+          className="relative flex flex-col items-center flex-shrink-0 cursor-pointer"
+          style={{ gap: 6 }}
           onClick={() => myNote ? handleDeleteNote() : setShowAddModal(true)}>
-          <div style={{ position: 'relative', paddingTop: myNote ? 42 : 0 }}>
+          <div className="relative flex flex-col items-center" style={{ paddingTop: myNote ? 42 : 0 }}>
             {myNote && <NoteBubble text={myNote.content} />}
             <div style={{ padding: 2, borderRadius: '50%', background: myNote ? 'linear-gradient(135deg,#3b82f6,#8b5cf6)' : 'rgba(255,255,255,0.1)', position: 'relative' }}>
               <Avatar profile={profile} size={44} />
@@ -386,9 +371,10 @@ export default function NotesTray({ profile, friends = [] }) {
             <motion.div key={friend.id}
               initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }}
               transition={{ delay: i * 0.05 }}
-              style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, flexShrink: 0, cursor: 'pointer' }}
+              className="relative flex flex-col items-center flex-shrink-0 cursor-pointer"
+              style={{ gap: 6 }}
               onClick={() => setReplyTarget({ sender: friend, note })}>
-              <div style={{ position: 'relative', paddingTop: 42 }}>
+              <div className="relative flex flex-col items-center" style={{ paddingTop: 42 }}>
                 <NoteBubble text={note.content} />
                 <div style={{ padding: 2, borderRadius: '50%', background: 'linear-gradient(135deg,#3b82f6,#8b5cf6)' }}>
                   <Avatar profile={friend} index={i + 1} size={44} />
