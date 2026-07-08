@@ -2,6 +2,7 @@ import{useEffect,useState,useRef,useCallback}from'react'
 import{motion,AnimatePresence}from'framer-motion'
 import{MessageCircle,Users,Eye,EyeOff,Trash2,X,Search,Clock}from'lucide-react'
 import{sanitizeSearchQuery}from'../utils/sanitize'
+import NotesTray from'../components/NotesTray'
 
 /* ── Chat Search Modal ── */
 function ChatSearchModal({ profile, onClose }) {
@@ -542,6 +543,9 @@ export default function Chats({profile}){
             <EyeOff style={{width:16,height:16}}/>
           </motion.button>
         </div>
+
+        {/* ── Notes Tray ── */}
+        <NotesTray profile={profile} friends={friends} />
 
         {/* ── Chat Search Bar ── */}
         <div style={{ position: 'relative', marginBottom: '16px' }}>
