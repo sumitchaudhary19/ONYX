@@ -292,10 +292,61 @@ function ReplyNoteModal({ sender, note, currentUserId, onClose }) {
   )
 }
 
+function SelfNoteModal({ profile, note, onClose, onNewNote, onDelete }) {
+  const [deleting, setDeleting] = useState(false)
+
+  const handleDelete = async () => {
+    if (deleting) return
+    setDeleting(true)
+    await onDelete()
+    setDeleting(false)
+    onClose()
+  }
+
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      onClick={onClose}
+      className="fixed inset-0 z-[500] flex items-center justify-center p-5 bg-black/70 backdrop-blur-md">
+      <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }}
+        onClick={e => e.stopPropagation()}
+        className="bg-[#0b0b12]/95 border border-white/10 rounded-[28px] p-8 w-full max-w-[320px] shadow-[0_40px_80px_rgba(0,0,0,0.7)] flex flex-col items-center">
+        
+        {/* Header */}
+        <div className="w-full flex justify-end mb-4">
+          <button onClick={onClose} className="p-2 rounded-xl bg-white/5 border border-white/10 text-slate-400">
+            <X size={16} />
+          </button>
+        </div>
+
+        {/* Avatar & Note Preview */}
+        <div className="relative flex flex-col items-center mb-8 mt-4">
+          <NoteBubble text={note.content} />
+          <div className="p-1 rounded-full bg-gradient-to-br from-blue-500 to-purple-500">
+            <Avatar profile={profile} size={64} />
+          </div>
+        </div>
+
+        {/* Actions */}
+        <div className="w-full flex flex-col gap-3">
+          <button onClick={() => { onClose(); onNewNote(); }}
+            className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-blue-500 to-purple-500 text-white font-bold text-sm shadow-[0_8px_24px_rgba(59,130,246,0.35)]">
+            Leave a new note
+          </button>
+          <button onClick={handleDelete} disabled={deleting}
+            className="w-full py-3.5 rounded-2xl bg-white/5 text-red-400 font-semibold text-sm border border-red-500/20 hover:bg-red-500/10 transition-colors">
+            {deleting ? 'Deleting...' : 'Delete note'}
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>
+  )
+}
+
 export default function NotesTray({ profile, friends = [] }) {
   const [myNote, setMyNote]           = useState(null)
   const [friendNotes, setFriendNotes] = useState([])
   const [showAddModal, setShowAddModal] = useState(false)
+  const [showSelfNoteModal, setShowSelfNoteModal] = useState(false)
   const [replyTarget, setReplyTarget] = useState(null)
   const [loadingNotes, setLoadingNotes] = useState(true)
 
@@ -345,7 +396,7 @@ export default function NotesTray({ profile, friends = [] }) {
         <motion.div
           className="relative overflow-visible flex flex-col items-center flex-shrink-0 cursor-pointer"
           style={{ gap: 6 }}
-          onClick={() => myNote ? handleDeleteNote() : setShowAddModal(true)}>
+          onClick={() => myNote ? setShowSelfNoteModal(true) : setShowAddModal(true)}>
           <div className="relative overflow-visible flex flex-col items-center">
             {myNote && <NoteBubble text={myNote.content} />}
             <div style={{ padding: 2, borderRadius: '50%', background: myNote ? 'linear-gradient(135deg,#3b82f6,#8b5cf6)' : 'rgba(255,255,255,0.1)', position: 'relative' }}>
@@ -399,6 +450,12 @@ export default function NotesTray({ profile, friends = [] }) {
         {showAddModal && (
           <AddNoteModal profile={profile} onClose={() => setShowAddModal(false)}
             onSaved={(text) => { setMyNote({ content: text, created_at: new Date().toISOString() }) }} />
+        )}
+        {showSelfNoteModal && (
+          <SelfNoteModal profile={profile} note={myNote}
+            onClose={() => setShowSelfNoteModal(false)}
+            onNewNote={() => setShowAddModal(true)}
+            onDelete={handleDeleteNote} />
         )}
         {replyTarget && (
           <ReplyNoteModal sender={replyTarget.sender} note={replyTarget.note}
