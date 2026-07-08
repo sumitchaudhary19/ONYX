@@ -51,9 +51,9 @@ function Avatar({ profile, index = 0, size = 44 }) {
 
 function NoteBubble({ text }) {
   return (
-    <div className="absolute top-0 left-1/2 -translate-x-1/2 bg-white text-[#0f172a] text-xs font-semibold px-3 py-1.5 rounded-2xl shadow-xl truncate max-w-[120px] border border-slate-100 flex items-center justify-center z-10">
+    <div className="absolute -top-10 left-1/2 -translate-x-1/2 w-max max-w-[120px] bg-[#1e293b] text-white text-[11px] leading-tight px-3 py-1.5 rounded-2xl shadow-md break-words text-center z-10 border border-slate-700/50">
       {text}
-      <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-l-[6px] border-r-[6px] border-t-[6px] border-transparent border-t-white" />
+      <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-l-[5px] border-r-[5px] border-t-[5px] border-transparent border-t-[#1e293b]" />
     </div>
   )
 }
@@ -341,12 +341,12 @@ export default function NotesTray({ profile, friends = [] }) {
 
   return (
     <>
-      <div style={{ display: 'flex', gap: 16, overflowX: 'auto', padding: '4px 0 12px', scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' }}>
+      <div className="flex gap-4 overflow-x-auto px-6 pt-12 pb-4 no-scrollbar" style={{ scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' }}>
         <motion.div
-          className="relative flex flex-col items-center flex-shrink-0 cursor-pointer"
+          className="relative overflow-visible flex flex-col items-center flex-shrink-0 cursor-pointer"
           style={{ gap: 6 }}
           onClick={() => myNote ? handleDeleteNote() : setShowAddModal(true)}>
-          <div className="relative flex flex-col items-center" style={{ paddingTop: myNote ? 42 : 0 }}>
+          <div className="relative overflow-visible flex flex-col items-center">
             {myNote && <NoteBubble text={myNote.content} />}
             <div style={{ padding: 2, borderRadius: '50%', background: myNote ? 'linear-gradient(135deg,#3b82f6,#8b5cf6)' : 'rgba(255,255,255,0.1)', position: 'relative' }}>
               <Avatar profile={profile} size={44} />
@@ -371,10 +371,10 @@ export default function NotesTray({ profile, friends = [] }) {
             <motion.div key={friend.id}
               initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }}
               transition={{ delay: i * 0.05 }}
-              className="relative flex flex-col items-center flex-shrink-0 cursor-pointer"
+              className="relative overflow-visible flex flex-col items-center flex-shrink-0 cursor-pointer"
               style={{ gap: 6 }}
               onClick={() => setReplyTarget({ sender: friend, note })}>
-              <div className="relative flex flex-col items-center" style={{ paddingTop: 42 }}>
+              <div className="relative overflow-visible flex flex-col items-center">
                 <NoteBubble text={note.content} />
                 <div style={{ padding: 2, borderRadius: '50%', background: 'linear-gradient(135deg,#3b82f6,#8b5cf6)' }}>
                   <Avatar profile={friend} index={i + 1} size={44} />
