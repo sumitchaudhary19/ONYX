@@ -51,7 +51,7 @@ function Avatar({ profile, index = 0, size = 44 }) {
 
 function NoteBubble({ text }) {
   return (
-    <div className="absolute -top-12 bg-white text-[#0f172a] text-xs font-semibold px-3 py-1.5 rounded-2xl shadow-xl truncate max-w-[120px] border border-slate-100 flex items-center justify-center z-10">
+    <div className="absolute top-0 left-1/2 -translate-x-1/2 bg-white text-[#0f172a] text-xs font-semibold px-3 py-1.5 rounded-2xl shadow-xl truncate max-w-[120px] border border-slate-100 flex items-center justify-center z-10">
       {text}
       <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-l-[6px] border-r-[6px] border-t-[6px] border-transparent border-t-white" />
     </div>
