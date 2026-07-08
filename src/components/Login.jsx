@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../supabaseClient'
-import { Chrome, Shield, Users, Zap, UserPlus, X, Play } from 'lucide-react'
+import { Chrome, Shield, Users, Zap, UserPlus, X, Play, CheckCircle, XCircle } from 'lucide-react'
+import { BRANCHES } from './Onboarding'
 
 /* ── Feature pills shown below the card ───────────────── */
 const FEATURES = [
@@ -18,8 +19,12 @@ export default function Login() {
     firstName: '',
     lastName: '',
     username: '',
-    password: ''
+    password: '',
+    branch: ''
   })
+  
+  const [usernameStatus, setUsernameStatus] = useState('idle') // 'idle' | 'checking' | 'available' | 'taken' | 'error'
+  const debounceRef = useRef(null)
 
   useEffect(() => {
     const err = localStorage.getItem('login_error')
@@ -54,6 +59,28 @@ export default function Login() {
     window.location.href = '/chat' // Force reload to clear App.jsx state and pick up session
   }
 
+  const handleUsernameChange = (e) => {
+    const val = e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '')
+    setGuestForm(prev => ({ ...prev, username: val }))
+
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    if (val.length < 3) {
+      setUsernameStatus('idle')
+      return
+    }
+
+    setUsernameStatus('checking')
+    debounceRef.current = setTimeout(async () => {
+      try {
+        const { data, error } = await supabase.from('profiles').select('id').eq('username', val).single()
+        if (error && error.code !== 'PGRST116') throw error
+        setUsernameStatus(data ? 'taken' : 'available')
+      } catch (err) {
+        setUsernameStatus('error')
+      }
+    }, 500)
+  }
+
   const handleGuestSubmit = async (e) => {
     e.preventDefault()
     setLoading(true)
@@ -79,6 +106,7 @@ export default function Login() {
           first_name: guestForm.firstName,
           last_name: guestForm.lastName,
           username: guestForm.username,
+          branch: guestForm.branch,
           btech_year: 'GUEST'
         })
         if (profileError) {
@@ -177,15 +205,37 @@ export default function Login() {
                 <input required type="text" placeholder="First name" className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-slate-400 focus:outline-none focus:border-blue-500 transition-colors" value={guestForm.firstName} onChange={e => setGuestForm({...guestForm, firstName: e.target.value})} />
                 <input required type="text" placeholder="Last name" className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-slate-400 focus:outline-none focus:border-blue-500 transition-colors" value={guestForm.lastName} onChange={e => setGuestForm({...guestForm, lastName: e.target.value})} />
               </div>
-              <input required type="text" placeholder="Username" className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-slate-400 focus:outline-none focus:border-blue-500 transition-colors" value={guestForm.username} onChange={e => setGuestForm({...guestForm, username: e.target.value})} />
+              <div className="relative">
+                <input required type="text" placeholder="Username" className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-slate-400 focus:outline-none focus:border-blue-500 transition-colors pr-10" value={guestForm.username} onChange={handleUsernameChange} />
+                <div className="absolute right-3 top-3.5 flex items-center">
+                  {usernameStatus === 'checking' && <svg className="animate-spin w-4 h-4 text-blue-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/></svg>}
+                  {usernameStatus === 'available' && <CheckCircle className="w-4 h-4 text-green-400" />}
+                  {usernameStatus === 'taken' && <XCircle className="w-4 h-4 text-red-400" />}
+                </div>
+              </div>
+              {usernameStatus === 'taken' && <p className="text-xs text-red-400 ml-1">This username is already taken.</p>}
+              
               <input required type="password" placeholder="Password" className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-slate-400 focus:outline-none focus:border-blue-500 transition-colors" value={guestForm.password} onChange={e => setGuestForm({...guestForm, password: e.target.value})} />
               
               <div>
                 <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2 ml-1">BTECH YEAR</label>
                 <input type="text" disabled value="GUEST" className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-slate-400 cursor-not-allowed opacity-70" />
               </div>
+              
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2 ml-1">BRANCH</label>
+                <select 
+                  required 
+                  value={guestForm.branch} 
+                  onChange={e => setGuestForm({...guestForm, branch: e.target.value})}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 transition-colors appearance-none cursor-pointer"
+                >
+                  <option value="" disabled hidden>Select your branch</option>
+                  {BRANCHES.map(opt => <option key={opt.value} value={opt.value} style={{ background: '#0d0d0d', color: '#fff' }}>{opt.label}</option>)}
+                </select>
+              </div>
 
-              <button disabled={loading} type="submit" className="w-full mt-4 bg-blue-600 hover:bg-blue-500 text-white font-bold py-3.5 px-6 rounded-xl transition-colors shadow-lg shadow-blue-500/20 disabled:opacity-60 flex justify-center items-center gap-2">
+              <button disabled={loading || usernameStatus === 'taken' || usernameStatus === 'checking'} type="submit" className="w-full mt-4 bg-blue-600 hover:bg-blue-500 text-white font-bold py-3.5 px-6 rounded-xl transition-colors shadow-lg shadow-blue-500/20 disabled:opacity-60 flex justify-center items-center gap-2">
                 {loading ? <svg className="animate-spin w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/></svg> : 'Create guest account'}
               </button>
 

@@ -110,15 +110,18 @@ function SelectField({ label, id, value, onChange, options, placeholder = 'Selec
 }
 
 /* ─── Branch options ──────────────────────────────────── */
-const BRANCHES = [
-  { value: 'CSE', label: 'Computer Science (CSE)' },
-  { value: 'ECE', label: 'Electronics & Communication (ECE)' },
-  { value: 'EE',  label: 'Electrical (EE)' },
-  { value: 'ME',  label: 'Mechanical (ME)' },
-  { value: 'CE',  label: 'Civil (CE)' },
-  { value: 'CHE', label: 'Chemical (CHE)' },
-  { value: 'MME', label: 'Metallurgical & Materials (MME)' },
-  { value: 'B.Arch', label: 'Architecture (B.Arch)' },
+export const BRANCHES = [
+  { value: 'Architecture and Planning (B.Arch)', label: 'Architecture and Planning (B.Arch)' },
+  { value: 'Artificial Intelligence & Data Engineering', label: 'Artificial Intelligence & Data Engineering' },
+  { value: 'Chemical Engineering', label: 'Chemical Engineering' },
+  { value: 'Civil Engineering', label: 'Civil Engineering' },
+  { value: 'Computer Science and Engineering', label: 'Computer Science and Engineering' },
+  { value: 'Electrical Engineering', label: 'Electrical Engineering' },
+  { value: 'Electronics and Communication Engineering', label: 'Electronics and Communication Engineering' },
+  { value: 'Mechanical Engineering', label: 'Mechanical Engineering' },
+  { value: 'Metallurgical and Materials Engineering', label: 'Metallurgical and Materials Engineering' },
+  { value: 'Engineering Physics', label: 'Engineering Physics' },
+  { value: 'Mathematics and Computing', label: 'Mathematics and Computing' }
 ]
 
 /* ─── Onboarding ─────────────────────────────────────── */

@@ -113,6 +113,7 @@ export default function MainLayout({ profile, session }) {
   const [showSnap,     setShowSnap    ] = useState(false)
   const [showPost,     setShowPost    ] = useState(false)
   const [showGroup,    setShowGroup   ] = useState(false)
+  const [toastData,    setToastData   ] = useState(null)
   const [storyFile,    setStoryFile   ] = useState(null)
   const [readPost,     setReadPost    ] = useState(null)
   const [shopPhase,    setShopPhase   ] = useState('idle') // 'idle' | 'transition' | 'shop'
@@ -146,7 +147,23 @@ export default function MainLayout({ profile, session }) {
 
     const chatBadgeCh = supabase.channel(`chat-badge-${profile.id}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `receiver_id=eq.${profile.id}` },
-        () => fetchUnreadChatCount())
+        async (payload) => {
+          fetchUnreadChatCount()
+          // Only show toast if not in that specific chat room
+          if (!window.location.pathname.includes(`/chat/room/${payload.new.sender_id}`)) {
+            const { data: senderProfile } = await supabase.from('profiles').select('first_name, last_name, avatar_url').eq('id', payload.new.sender_id).single()
+            if (senderProfile) {
+              setToastData({
+                senderId: payload.new.sender_id,
+                name: `${senderProfile.first_name || ''} ${senderProfile.last_name || ''}`.trim(),
+                avatar: senderProfile.avatar_url,
+                content: payload.new.content || 'Sent an attachment'
+              })
+              // Auto-dismiss after 3 seconds
+              setTimeout(() => setToastData(null), 3000)
+            }
+          }
+        })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'messages', filter: `receiver_id=eq.${profile.id}` },
         () => fetchUnreadChatCount())
       .subscribe()
@@ -191,6 +208,37 @@ export default function MainLayout({ profile, session }) {
 
   return (
     <div className="flex flex-col md:flex-row h-[100dvh] w-full bg-slate-50 dark:bg-[#060b18] text-slate-900 dark:text-white transition-colors duration-300 overflow-hidden">
+      
+      {/* ═══ GLOBAL TOAST NOTIFICATION ═══ */}
+      <AnimatePresence>
+        {toastData && (
+          <motion.div
+            initial={{ opacity: 0, y: -50, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -20, scale: 0.9 }}
+            transition={{ type: 'spring', stiffness: 400, damping: 25 }}
+            className="fixed top-4 left-1/2 -translate-x-1/2 z-[9999] cursor-pointer"
+            onClick={() => {
+              navigate(`/chat/room/${toastData.senderId}`)
+              setToastData(null)
+            }}
+          >
+            <div className="flex items-center gap-3 bg-white/95 dark:bg-[#0f172a]/95 backdrop-blur-xl border border-slate-200 dark:border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.4)] px-4 py-3 rounded-2xl min-w-[300px] max-w-[90vw]">
+              {toastData.avatar ? (
+                <img src={toastData.avatar} alt="Avatar" className="w-10 h-10 rounded-full object-cover shrink-0 bg-slate-800" />
+              ) : (
+                <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center shrink-0 font-bold text-white text-lg">
+                  {toastData.name?.[0]?.toUpperCase() || '?'}
+                </div>
+              )}
+              <div className="flex flex-col flex-1 min-w-0">
+                <p className="text-sm font-bold text-slate-900 dark:text-white truncate">{toastData.name}</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{toastData.content}</p>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
       
       {/* ═══ NAVIGATION ═══ */}
       <aside className="order-last md:order-first w-full h-[68px] md:w-[72px] md:h-full flex-shrink-0 flex md:flex-col items-center justify-around md:justify-start px-1 md:px-2 py-2 md:py-5 bg-white/95 dark:bg-[#060b18]/95 border-t md:border-t-0 md:border-r border-slate-200 dark:border-white/5 md:gap-3 backdrop-blur-xl z-50 transition-colors duration-300">
