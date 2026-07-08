@@ -1,24 +1,31 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, Plus } from 'lucide-react'
+import { X, Plus, Smile } from 'lucide-react'
 import { supabase } from '../supabaseClient'
 
-// -- Smart emoji keyword map ------------------------------------------------
+// ── Smart emoji keyword map ────────────────────────────────────────────────
 export function getSmartEmojis(text = '') {
   const t = text.toLowerCase()
-  if (/exam|test|midsem|assignment|sheet/.test(t))  return ['??', '??', '??', '??']
-  if (/party|weekend|trip|night/.test(t))           return ['??', '??', '??', '??']
-  if (/mess|food|nescafe|hungry/.test(t))           return ['??', '?', '??', '??']
-  return ['??', '??', '??', '??', '??']
+  if (/exam|test|midsem|assignment|sheet/.test(t))  return ['😭', '📚', '✍️', '🥲']
+  if (/party|weekend|trip|night/.test(t))           return ['🥳', '🍻', '🔥', '🕺']
+  if (/mess|food|nescafe|hungry/.test(t))           return ['🍕', '☕', '🤢', '🍔']
+  return ['😂', '😍', '😲', '🥺', '🔥']
 }
 
-// -- Campus quick-chips ------------------------------------------------------
+// ── Quick emoji picker rows ────────────────────────────────────────────────
+const EMOJI_ROWS = [
+  ['😀','😂','😍','😔','😭','😲','🥺','🔥'],
+  ['👍','🔥','❤️','🥳','🤢','🍕','☕','🍻'],
+  ['📚','✍️','🏃','😴','💪','🧠','🚀','🎯'],
+]
+
+// ── Campus quick-chips ──────────────────────────────────────────────────────
 const CAMPUS_CHIPS = [
-  { label: '?? VLTC',    text: 'at VLTC'    },
-  { label: '? Nescafe', text: 'at Nescafe' },
-  { label: '?? Library', text: 'at Library' },
-  { label: '?? Bunking', text: 'bunking'    },
-  { label: '?? Mess',    text: 'at Mess'    },
+  { label: '📍 VLTC',    text: 'at VLTC'    },
+  { label: '☕ Nescafe', text: 'at Nescafe' },
+  { label: '📚 Library', text: 'at Library' },
+  { label: '😴 Bunking', text: 'bunking'    },
+  { label: '🍲 Mess',    text: 'at Mess'    },
 ]
 
 const GRADIENTS = [
@@ -70,25 +77,58 @@ function NoteBubble({ text }) {
 function AddNoteModal({ profile, onClose, onSaved }) {
   const [text, setText] = useState('')
   const [saving, setSaving] = useState(false)
+  const [error, setError] = useState(null)
+  const [showEmoji, setShowEmoji] = useState(false)
+  const emojiRef = useRef(null)
+
+  // Close emoji picker on outside click
+  useEffect(() => {
+    function handleOutside(e) {
+      if (emojiRef.current && !emojiRef.current.contains(e.target)) setShowEmoji(false)
+    }
+    document.addEventListener('mousedown', handleOutside)
+    return () => document.removeEventListener('mousedown', handleOutside)
+  }, [])
 
   const handleChip = (chipText) => {
-    const joined = text ? `${text} ${chipText}` : chipText
-    setText(joined.slice(0, 60))
+    const joined = (text + (text ? ' ' : '') + chipText).slice(0, 60)
+    setText(joined)
+  }
+
+  const appendEmoji = (emoji) => {
+    const next = (text + emoji).slice(0, 60)
+    setText(next)
+    setShowEmoji(false)
   }
 
   const handleSave = async () => {
     const trimmed = text.trim()
     if (!trimmed || saving) return
     setSaving(true)
+    setError(null)
     try {
+      // Delete previous note first (1 active note per user)
       await supabase.from('notes').delete().eq('user_id', profile.id)
-      const { error } = await supabase.from('notes').insert({ user_id: profile.id, content: trimmed })
-      if (error) throw error
+
+      const { error: insertError } = await supabase
+        .from('notes')
+        .insert({ user_id: profile.id, content: trimmed })
+
+      if (insertError) {
+        console.error('[NotesTray] insert error:', insertError)
+        setError(insertError.message || 'Failed to save note. Check RLS policies.')
+        setSaving(false)
+        return
+      }
+
       onSaved(trimmed)
       onClose()
     } catch (err) {
-      console.error('[NotesTray] save:', err)
-    } finally { setSaving(false) }
+      console.error('[NotesTray] save exception:', err)
+      setError(err.message || 'Unexpected error saving note.')
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
@@ -99,29 +139,89 @@ function AddNoteModal({ profile, onClose, onSaved }) {
         transition={{ type: 'spring', stiffness: 380, damping: 28 }}
         onClick={e => e.stopPropagation()}
         style={{ background: 'linear-gradient(180deg,#0d1630 0%,#080e22 100%)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 28, padding: 28, width: '100%', maxWidth: 380, boxShadow: '0 40px 80px rgba(0,0,0,0.7)' }}>
+
+        {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
           <div>
             <p style={{ fontSize: 18, fontWeight: 700, color: '#f1f5f9' }}>Add a Note</p>
-            <p style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>Vanishes in 24 hours ?</p>
+            <p style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>Vanishes in 24 hours ✨</p>
           </div>
           <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, padding: 8, cursor: 'pointer', color: '#94a3b8', display: 'flex' }}>
             <X style={{ width: 16, height: 16 }} />
           </button>
         </div>
+
+        {/* Avatar live preview */}
         <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 24, position: 'relative', paddingTop: 40 }}>
           {text && <NoteBubble text={text} />}
           <div style={{ padding: 2, borderRadius: '50%', background: text ? 'linear-gradient(135deg,#3b82f6,#8b5cf6)' : 'rgba(255,255,255,0.1)', position: 'relative' }}>
             <Avatar profile={profile} size={52} />
           </div>
         </div>
-        <div style={{ position: 'relative', marginBottom: 12 }}>
-          <input autoFocus type="text" maxLength={60} placeholder="What's on your mind? (60 chars)"
-            value={text} onChange={e => setText(e.target.value)}
-            style={{ width: '100%', padding: '13px 50px 13px 16px', boxSizing: 'border-box', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 16, color: '#f1f5f9', fontSize: 14, outline: 'none' }}
+
+        {/* Text input with emoji toggle */}
+        <div style={{ position: 'relative', marginBottom: 12 }} ref={emojiRef}>
+          <input
+            autoFocus
+            type="text"
+            maxLength={60}
+            placeholder="What's on your mind? (60 chars)"
+            value={text}
+            onChange={e => setText(e.target.value)}
+            style={{ width: '100%', padding: '13px 76px 13px 16px', boxSizing: 'border-box', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 16, color: '#f1f5f9', fontSize: 14, outline: 'none' }}
             onFocus={e => { e.target.style.borderColor = '#3b82f6'; e.target.style.background = 'rgba(59,130,246,0.08)' }}
-            onBlur={e => { e.target.style.borderColor = 'rgba(255,255,255,0.12)'; e.target.style.background = 'rgba(255,255,255,0.06)' }} />
-          <span style={{ position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)', fontSize: 11, color: text.length >= 50 ? '#f87171' : '#64748b' }}>{text.length}/60</span>
+            onBlur={e => { e.target.style.borderColor = 'rgba(255,255,255,0.12)'; e.target.style.background = 'rgba(255,255,255,0.06)' }}
+          />
+          {/* Char count */}
+          <span style={{ position: 'absolute', right: 40, top: '50%', transform: 'translateY(-50%)', fontSize: 11, color: text.length >= 50 ? '#f87171' : '#475569', pointerEvents: 'none' }}>{text.length}/60</span>
+          {/* Emoji toggle button */}
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); setShowEmoji(v => !v) }}
+            style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: showEmoji ? '#3b82f6' : '#475569', display: 'flex', padding: 4, borderRadius: 8, transition: 'color 0.15s' }}>
+            <Smile style={{ width: 18, height: 18 }} />
+          </button>
+
+          {/* Emoji Picker popover */}
+          <AnimatePresence>
+            {showEmoji && (
+              <motion.div
+                initial={{ opacity: 0, y: 8, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 8, scale: 0.95 }}
+                transition={{ duration: 0.15 }}
+                style={{
+                  position: 'absolute', top: 'calc(100% + 8px)', right: 0, zIndex: 100,
+                  background: 'rgba(11,11,18,0.97)', backdropFilter: 'blur(16px)',
+                  border: '1px solid rgba(255,255,255,0.1)', borderRadius: 18,
+                  padding: '10px 12px', boxShadow: '0 20px 60px rgba(0,0,0,0.7)',
+                  minWidth: 220
+                }}>
+                {EMOJI_ROWS.map((row, ri) => (
+                  <div key={ri} style={{ display: 'flex', gap: 4, marginBottom: ri < EMOJI_ROWS.length - 1 ? 4 : 0 }}>
+                    {row.map(emoji => (
+                      <button key={emoji} onClick={() => appendEmoji(emoji)}
+                        style={{ width: 34, height: 34, borderRadius: 10, border: 'none', background: 'transparent', fontSize: 20, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'background 0.1s' }}
+                        onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+                        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                        {emoji}
+                      </button>
+                    ))}
+                  </div>
+                ))}
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
+
+        {/* Error message */}
+        {error && (
+          <p style={{ fontSize: 12, color: '#f87171', marginBottom: 10, padding: '8px 12px', background: 'rgba(248,113,113,0.1)', border: '1px solid rgba(248,113,113,0.2)', borderRadius: 10 }}>
+            ⚠️ {error}
+          </p>
+        )}
+
+        {/* Campus Chips */}
         <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4, marginBottom: 20, scrollbarWidth: 'none' }}>
           {CAMPUS_CHIPS.map(chip => (
             <button key={chip.label} onClick={() => handleChip(chip.text)}
@@ -130,9 +230,13 @@ function AddNoteModal({ profile, onClose, onSaved }) {
               onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.07)'}>{chip.label}</button>
           ))}
         </div>
+
+        {/* Submit */}
         <button onClick={handleSave} disabled={!text.trim() || saving}
-          style={{ width: '100%', padding: '13px 24px', background: text.trim() ? 'linear-gradient(135deg,#3b82f6,#8b5cf6)' : 'rgba(255,255,255,0.05)', border: 'none', borderRadius: 16, color: '#fff', fontSize: 14, fontWeight: 700, cursor: text.trim() ? 'pointer' : 'not-allowed', opacity: saving ? 0.6 : 1, boxShadow: text.trim() ? '0 8px 24px rgba(59,130,246,0.35)' : 'none' }}>
-          {saving ? 'Sharing�' : 'Share Note ?'}
+          style={{ width: '100%', padding: '13px 24px', background: text.trim() ? 'linear-gradient(135deg,#3b82f6,#8b5cf6)' : 'rgba(255,255,255,0.05)', border: 'none', borderRadius: 16, color: '#fff', fontSize: 14, fontWeight: 700, cursor: text.trim() ? 'pointer' : 'not-allowed', opacity: saving ? 0.6 : 1, boxShadow: text.trim() ? '0 8px 24px rgba(59,130,246,0.35)' : 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+          {saving ? (
+            <><svg style={{ width: 16, height: 16, animation: 'spin 1s linear infinite' }} fill="none" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" style={{ opacity: 0.25 }}/><path fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/></svg> Sharing…</>
+          ) : 'Share Note ✨'}
         </button>
       </motion.div>
     </motion.div>
@@ -177,6 +281,7 @@ function ReplyNoteModal({ sender, note, currentUserId, onClose }) {
             </div>
           </div>
         </div>
+        <p style={{ fontSize: 11, color: '#475569', textAlign: 'center', marginBottom: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Quick react</p>
         <div style={{ display: 'flex', gap: 10, marginBottom: 16, justifyContent: 'center' }}>
           {emojis.map(emoji => (
             <motion.button key={emoji} whileTap={{ scale: 0.8 }} whileHover={{ scale: 1.2 }}
@@ -187,7 +292,7 @@ function ReplyNoteModal({ sender, note, currentUserId, onClose }) {
           ))}
         </div>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-          <input autoFocus type="text" placeholder="Send a reply�" value={reply}
+          <input autoFocus type="text" placeholder="Send a reply…" value={reply}
             onChange={e => setReply(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter') sendReply(reply) }}
             style={{ flex: 1, padding: '12px 16px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 16, color: '#f1f5f9', fontSize: 14, outline: 'none' }}
@@ -195,7 +300,7 @@ function ReplyNoteModal({ sender, note, currentUserId, onClose }) {
             onBlur={e => { e.target.style.borderColor = 'rgba(255,255,255,0.12)' }} />
           <motion.button whileTap={{ scale: 0.9 }} onClick={() => sendReply(reply)} disabled={!reply.trim() || sending}
             style={{ width: 44, height: 44, borderRadius: 14, background: reply.trim() ? 'linear-gradient(135deg,#3b82f6,#8b5cf6)' : 'rgba(255,255,255,0.07)', border: 'none', cursor: reply.trim() ? 'pointer' : 'not-allowed', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, boxShadow: reply.trim() ? '0 4px 16px rgba(59,130,246,0.4)' : 'none' }}>
-            ?
+            ↑
           </motion.button>
         </div>
       </motion.div>
@@ -253,7 +358,6 @@ export default function NotesTray({ profile, friends = [] }) {
   return (
     <>
       <div style={{ display: 'flex', gap: 16, overflowX: 'auto', padding: '4px 0 12px', scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' }}>
-        {/* Own slot */}
         <motion.div
           style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, flexShrink: 0, cursor: 'pointer' }}
           onClick={() => myNote ? handleDeleteNote() : setShowAddModal(true)}>
@@ -308,7 +412,7 @@ export default function NotesTray({ profile, friends = [] }) {
       <AnimatePresence>
         {showAddModal && (
           <AddNoteModal profile={profile} onClose={() => setShowAddModal(false)}
-            onSaved={(text) => setMyNote({ content: text, created_at: new Date().toISOString() })} />
+            onSaved={(text) => { setMyNote({ content: text, created_at: new Date().toISOString() }) }} />
         )}
         {replyTarget && (
           <ReplyNoteModal sender={replyTarget.sender} note={replyTarget.note}
@@ -316,7 +420,10 @@ export default function NotesTray({ profile, friends = [] }) {
         )}
       </AnimatePresence>
 
-      <style>{`@keyframes pulse{0%,100%{opacity:.5}50%{opacity:.2}}`}</style>
+      <style>{`
+        @keyframes pulse { 0%,100%{opacity:.5} 50%{opacity:.2} }
+        @keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+      `}</style>
     </>
   )
 }
