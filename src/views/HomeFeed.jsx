@@ -136,6 +136,7 @@ export default function HomeFeed({ profile }) {
   const [showSuggestions, setShowSuggestions] = useState(false)
   const [suggestions, setSuggestions] = useState([])
   const [followingAll, setFollowingAll] = useState(false)
+  const [followedSet, setFollowedSet] = useState(new Set())
 
   useEffect(() => {
     const load = async () => {
@@ -233,18 +234,35 @@ export default function HomeFeed({ profile }) {
   async function followAll() {
     setFollowingAll(true)
     try {
-      const requests = suggestions.map(s => ({
-        sender_id: profile.id,
-        receiver_id: s.id,
-        status: 'pending'
-      }))
-      await supabase.from('friend_requests').insert(requests)
+      const requests = suggestions
+        .filter(s => !followedSet.has(s.id))
+        .map(s => ({
+          sender_id: profile.id,
+          receiver_id: s.id,
+          status: 'pending'
+        }))
+      if (requests.length > 0) {
+        await supabase.from('friend_requests').insert(requests)
+      }
     } catch (err) {
       console.error('[HomeFeed] followAll:', err)
     }
     localStorage.setItem(`onyx_suggestions_seen_${profile.id}`, 'true')
     setFollowingAll(false)
     setShowSuggestions(false)
+  }
+
+  async function followSingleUser(userId) {
+    try {
+      await supabase.from('friend_requests').insert({
+        sender_id: profile.id,
+        receiver_id: userId,
+        status: 'pending'
+      })
+      setFollowedSet(prev => new Set(prev).add(userId))
+    } catch (err) {
+      console.error('[HomeFeed] followSingleUser:', err)
+    }
   }
 
   function dismissSuggestions() {
@@ -390,9 +408,19 @@ export default function HomeFeed({ profile }) {
                       }
                       <div className="flex-1 min-w-0">
                         <p className="text-[14px] font-semibold text-slate-100 truncate">{name}</p>
-                        <p className="text-[11px] text-slate-500">@{s.username || '\u2014'} · {s.branch || ''}</p>
+                        <p className="text-[11px] text-slate-500">@{s.username || '\u2014'} • {s.branch || ''}</p>
                       </div>
-                      <UserPlus className="w-4 h-4 text-blue-400 shrink-0" />
+                      <button
+                        onClick={(e) => { e.stopPropagation(); followSingleUser(s.id); }}
+                        disabled={followedSet.has(s.id)}
+                        className={`px-4 py-1.5 rounded-full text-[11px] font-bold transition-all shrink-0 ${
+                          followedSet.has(s.id)
+                            ? 'bg-white/10 text-gray-300 cursor-default border border-white/5'
+                            : 'bg-gradient-to-r from-purple-600 to-blue-500 text-white shadow-[0_0_15px_rgba(139,92,246,0.4)] hover:shadow-[0_0_20px_rgba(139,92,246,0.6)] cursor-pointer'
+                        }`}
+                      >
+                        {followedSet.has(s.id) ? 'Following' : 'Follow'}
+                      </button>
                     </motion.div>
                   )
                 })}

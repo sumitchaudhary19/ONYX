@@ -41,23 +41,13 @@ function OnyxLogo({ size = 'lg' }) {
   const textSize = size === 'lg' ? 'text-5xl' : 'text-3xl'
   return (
     <div className="flex flex-col items-center gap-4">
-      {/* Glowing Ring */}
-      <div className="relative" style={{ width: ringSize, height: ringSize }}>
-        <div className="absolute inset-0 rounded-full"
-          style={{
-            background: 'conic-gradient(from 0deg, #7c3aed, #3b82f6, #06b6d4, #8b5cf6, #7c3aed)',
-            filter: 'blur(8px)', opacity: 0.6,
-          }} />
-        <div className="absolute inset-[3px] rounded-full"
-          style={{
-            background: 'conic-gradient(from 180deg, #8b5cf6, #3b82f6, #06b6d4, #a855f7, #8b5cf6)',
-            animation: 'orbit-spin 6s linear infinite',
-          }} />
-        <div className="absolute inset-[6px] rounded-full bg-[#060b18]" />
-        <div className="absolute inset-0 rounded-full"
-          style={{
-            boxShadow: '0 0 40px rgba(139,92,246,0.4), 0 0 80px rgba(59,130,246,0.2)',
-          }} />
+      {/* Glowing Ring Image */}
+      <div className="relative flex justify-center items-center" style={{ width: ringSize, height: ringSize }}>
+        <img 
+          src="/onyx_logo_asset.png" 
+          alt="ONYX Logo" 
+          className="w-full h-full object-contain drop-shadow-[0_0_20px_rgba(139,92,246,0.6)] animate-pulse"
+        />
       </div>
       {/* Text */}
       <h1 className={`${textSize} font-black tracking-[0.15em] animate-onyx-glow select-none`}>
@@ -273,16 +263,90 @@ function DOBCalendar({ onSelect, onClose }) {
 
 // ── Step 1: Welcome ────────────────────────────────────────────────────────
 function StepWelcome({ onNext }) {
+  const [accounts, setAccounts] = useState([])
+  const [loggingIn, setLoggingIn] = useState(false)
+
+  useEffect(() => {
+    try {
+      const savedStr = localStorage.getItem('onyx_saved_accounts')
+      if (savedStr) setAccounts(JSON.parse(savedStr))
+    } catch (e) { console.error(e) }
+  }, [])
+
+  const removeAccount = (userId, e) => {
+    e.stopPropagation()
+    const updated = accounts.filter(a => a.user_id !== userId)
+    setAccounts(updated)
+    localStorage.setItem('onyx_saved_accounts', JSON.stringify(updated))
+  }
+
+  const loginWithAccount = async (acc) => {
+    setLoggingIn(true)
+    try {
+      const { error } = await supabase.auth.setSession({
+        access_token: acc.access_token,
+        refresh_token: acc.refresh_token
+      })
+      if (error) {
+        alert('Session expired. Please sign in again.')
+        removeAccount(acc.user_id, { stopPropagation: () => {} })
+        setLoggingIn(false)
+      } else {
+        window.location.href = '/chat'
+      }
+    } catch (err) {
+      console.error(err)
+      setLoggingIn(false)
+    }
+  }
+
   return (
     <div className="flex flex-col items-center justify-between h-full py-16 px-6">
       <div />
       <OnyxLogo size="lg" />
-      <div className="w-full max-w-xs">
+      <div className="w-full max-w-xs flex flex-col gap-4">
+        
+        {/* Saved Accounts */}
+        <AnimatePresence>
+          {accounts.map(acc => (
+            <motion.div
+              key={acc.user_id}
+              initial={{ opacity: 0, height: 0, marginBottom: 0 }}
+              animate={{ opacity: 1, height: 'auto', marginBottom: 8 }}
+              exit={{ opacity: 0, height: 0, marginBottom: 0, overflow: 'hidden' }}
+              onClick={() => loginWithAccount(acc)}
+              className="w-full flex items-center justify-between p-3 rounded-2xl bg-white/[0.04] border border-white/10 backdrop-blur-md cursor-pointer hover:bg-white/[0.08] transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                {acc.avatar_url ? (
+                  <img src={acc.avatar_url} alt="" className="w-10 h-10 rounded-xl object-cover" />
+                ) : (
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white font-bold text-sm">
+                    {acc.first_name?.[0]?.toUpperCase() || 'U'}
+                  </div>
+                )}
+                <div className="flex flex-col">
+                  <span className="text-white font-semibold text-sm">
+                    {acc.first_name} {acc.last_name}
+                  </span>
+                  <span className="text-slate-400 text-xs">@{acc.username}</span>
+                </div>
+              </div>
+              <button
+                onClick={(e) => removeAccount(acc.user_id, e)}
+                className="p-2 text-slate-500 hover:text-white rounded-full hover:bg-white/10 transition-colors"
+              >
+                <X size={16} />
+              </button>
+            </motion.div>
+          ))}
+        </AnimatePresence>
+
         <motion.div animate={{ boxShadow: ['0 0 20px rgba(59,130,246,0.3)', '0 0 40px rgba(139,92,246,0.5)', '0 0 20px rgba(59,130,246,0.3)'] }}
           transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
-          className="rounded-full">
-          <PrimaryButton onClick={onNext}>
-            <User size={18} /> Create my account <ChevronRight size={18} />
+          className="rounded-full mt-2">
+          <PrimaryButton onClick={onNext} disabled={loggingIn}>
+            {loggingIn ? <Loader2 size={18} className="animate-spin" /> : <><User size={18} /> Create my account <ChevronRight size={18} /></>}
           </PrimaryButton>
         </motion.div>
       </div>

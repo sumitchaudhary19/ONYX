@@ -130,6 +130,25 @@ export default function App() {
             avatarUrl:  data.avatar_url,
           })
           setIsNewUser(false)
+
+          // Save account for One-Tap Login (max 2 accounts)
+          try {
+            const savedStr = localStorage.getItem('onyx_saved_accounts')
+            let savedList = savedStr ? JSON.parse(savedStr) : []
+            const newAccount = {
+              user_id: data.id,
+              username: data.username,
+              avatar_url: data.avatar_url,
+              first_name: data.first_name,
+              last_name: data.last_name,
+              access_token: session.access_token,
+              refresh_token: session.refresh_token
+            }
+            savedList = savedList.filter(acc => acc.user_id !== data.id)
+            savedList.unshift(newAccount)
+            if (savedList.length > 2) savedList = savedList.slice(0, 2)
+            localStorage.setItem('onyx_saved_accounts', JSON.stringify(savedList))
+          } catch (e) { console.error('Failed to save account', e) }
         }
       } catch (err) {
         console.error('[App] checkProfile error:', err)
