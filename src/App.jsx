@@ -1,8 +1,7 @@
 import { useState, useEffect, Component } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { supabase } from './supabaseClient'
-import Login from './components/Login'
-import Onboarding from './components/Onboarding'
+import OnboardingWizard from './components/OnboardingWizard'
 import MainLayout from './components/MainLayout'
 import UserProfile from './views/UserProfile'
 import ChatRoom from './views/ChatRoom'
@@ -168,7 +167,7 @@ export default function App() {
           element={
             session
               ? <Navigate to={isNewUser ? '/onboarding' : '/chat'} replace />
-              : <Login />
+              : <OnboardingWizard onComplete={handleOnboardingComplete} />
           }
         />
 
@@ -178,7 +177,7 @@ export default function App() {
           element={
             !session       ? <Navigate to="/login" replace /> :
             !isNewUser     ? <Navigate to="/chat"  replace /> :
-            <Onboarding onComplete={handleOnboardingComplete} />
+            <OnboardingWizard onComplete={handleOnboardingComplete} session={session} />
           }
         />
 
