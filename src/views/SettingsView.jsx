@@ -123,6 +123,12 @@ function DangerModal({ profile, onClose }) {
         alert(`⚠️ Action Failed: ${error.message}\nDetails: ${error.details || 'None'}\n\nIf it says function not found, please run bugfix_setup.sql in the SQL Editor.`)
         throw error
       }
+      const savedStr = localStorage.getItem('onyx_saved_accounts')
+      if (savedStr) {
+        const accounts = JSON.parse(savedStr)
+        const updated = accounts.filter(a => a.user_id !== profile?.id)
+        localStorage.setItem('onyx_saved_accounts', JSON.stringify(updated))
+      }
       await supabase.auth.signOut()
       navigate('/login')
     } catch (e) {
@@ -312,7 +318,7 @@ export default function SettingsView({ profile, session }) {
   const showMsg = (msg, icon = CheckCircle2, color = '#60a5fa') => setToast({ msg, icon, color })
 
   const handleLogout = async () => {
-    await supabase.auth.signOut()
+    await supabase.auth.signOut({ scope: 'local' })
     navigate('/login')
   }
 
