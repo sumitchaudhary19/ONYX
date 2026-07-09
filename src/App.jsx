@@ -77,7 +77,7 @@ export default function App() {
     })
 
     // 2. React to future auth events (login, logout, token refresh)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (window.__GUEST_TRANSITION__) return
       const isGoogle = session?.user?.app_metadata?.provider === 'google'
       if (session?.user && isGoogle && !session.user.email.endsWith('@mnit.ac.in')) {
@@ -86,6 +86,21 @@ export default function App() {
         setSession(null)
       } else {
         setSession(session ?? null)
+        // Keep tokens fresh in saved accounts
+        if (session?.user?.id) {
+          try {
+            const savedStr = localStorage.getItem('onyx_saved_accounts')
+            if (savedStr) {
+              let savedList = JSON.parse(savedStr)
+              const index = savedList.findIndex(acc => acc.user_id === session.user.id)
+              if (index !== -1) {
+                savedList[index].access_token = session.access_token
+                savedList[index].refresh_token = session.refresh_token
+                localStorage.setItem('onyx_saved_accounts', JSON.stringify(savedList))
+              }
+            }
+          } catch (e) { console.error('Token refresh update error:', e) }
+        }
       }
       
       if (!session || (session?.user && isGoogle && !session.user.email.endsWith('@mnit.ac.in'))) {

@@ -288,7 +288,7 @@ function StepWelcome({ onNext }) {
         refresh_token: acc.refresh_token
       })
       if (error) {
-        alert('Session expired. Please sign in again.')
+        alert(`Session expired. Please sign in again. Details: ${error.message}`)
         removeAccount(acc.user_id, { stopPropagation: () => {} })
         setLoggingIn(false)
       } else {
