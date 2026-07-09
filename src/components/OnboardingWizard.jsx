@@ -681,6 +681,10 @@ export default function OnboardingWizard({ onComplete, session }) {
 
   // ── Guest Selection ──
   const handleGuest = () => {
+    if (localStorage.getItem('onyx_guest_account_created') === 'true') {
+      alert('Only one guest account can be created per device.')
+      return
+    }
     setAuthMode('guest')
     goNext()
   }
@@ -738,6 +742,10 @@ export default function OnboardingWizard({ onComplete, session }) {
 
       const { error: profileError } = await supabase.from('profiles').upsert(profileData)
       if (profileError) throw profileError
+
+      if (authMode === 'guest') {
+        localStorage.setItem('onyx_guest_account_created', 'true')
+      }
 
       if (onComplete) {
         onComplete({
