@@ -582,7 +582,14 @@ export default function Profile({profile:initialProfile, onTabChange}){
           <InfoRow icon={Zap} label="Last Seen" value={lastSeen} iconColor="#f59e0b"/>
         </SectionCard>
         {!isEditing&&(
-          <motion.button onClick={()=>{setSigning(true);supabase.auth.signOut({ scope: 'local' })}} disabled={signing} whileTap={{scale:0.97}}
+          <motion.button onClick={()=>{
+            setSigning(true)
+            for (let i = 0; i < localStorage.length; i++) {
+              const key = localStorage.key(i)
+              if (key && key.startsWith('sb-') && key.endsWith('-auth-token')) localStorage.removeItem(key)
+            }
+            window.location.href = '/login'
+          }} disabled={signing} whileTap={{scale:0.97}}
             style={{display:'flex',alignItems:'center',justifyContent:'center',gap:'8px',padding:'13px',borderRadius:'14px',border:'1px solid rgba(239,68,68,0.3)',background:'rgba(239,68,68,0.07)',color:'#f87171',fontSize:'14px',fontWeight:600,cursor:'pointer',opacity:signing?0.6:1}}>
             <LogOut style={{width:15,height:15}}/> {signing?'Signing out…':'Sign Out'}
           </motion.button>

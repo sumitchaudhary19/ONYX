@@ -317,9 +317,14 @@ export default function SettingsView({ profile, session }) {
 
   const showMsg = (msg, icon = CheckCircle2, color = '#60a5fa') => setToast({ msg, icon, color })
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut({ scope: 'local' })
-    navigate('/login')
+  const handleLogout = () => {
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i)
+      if (key && key.startsWith('sb-') && key.endsWith('-auth-token')) {
+        localStorage.removeItem(key)
+      }
+    }
+    window.location.href = '/login'
   }
 
   const handleChangePassword = () => {
