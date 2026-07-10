@@ -46,7 +46,7 @@ function OnyxLogo({ size = 'lg' }) {
         <img 
           src="/onyx_logo_asset.png" 
           alt="ONYX Logo" 
-          className="w-full h-full object-contain drop-shadow-[0_0_20px_rgba(139,92,246,0.6)] animate-pulse"
+          className="w-full h-full object-contain mix-blend-screen drop-shadow-[0_0_20px_rgba(139,92,246,0.6)] animate-pulse"
         />
       </div>
       {/* Text */}
