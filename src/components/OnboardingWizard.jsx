@@ -37,38 +37,13 @@ const pageTransition = { type: 'spring', stiffness: 300, damping: 30 }
 
 // ── Shared UI Primitives ───────────────────────────────────────────────────
 function OnyxLogo({ size = 'lg' }) {
-  const ringSize = size === 'lg' ? 120 : 80
-  const textSize = size === 'lg' ? 'text-5xl' : 'text-3xl'
+  const textSize = size === 'lg' ? 'text-6xl' : 'text-4xl'
   return (
-    <div className="flex flex-col items-center gap-4">
-      {/* Pure CSS Glowing Ring — no image, no background artifacts */}
-      <div className="relative" style={{ width: ringSize, height: ringSize }}>
-        {/* Outer glow blur */}
-        <div className="absolute inset-0 rounded-full animate-pulse"
-          style={{
-            background: 'conic-gradient(from 0deg, #7c3aed, #3b82f6, #06b6d4, #8b5cf6, #7c3aed)',
-            filter: 'blur(10px)', opacity: 0.6,
-          }} />
-        {/* Spinning ring */}
-        <div className="absolute inset-[3px] rounded-full"
-          style={{
-            background: 'conic-gradient(from 180deg, #8b5cf6, #3b82f6, #06b6d4, #a855f7, #8b5cf6)',
-            animation: 'orbit-spin 6s linear infinite',
-          }} />
-        {/* Inner cutout (matches app bg) */}
-        <div className="absolute inset-[6px] rounded-full bg-[#040811]" />
-        {/* Ambient shadow overlay */}
-        <div className="absolute inset-0 rounded-full"
-          style={{
-            boxShadow: '0 0 40px rgba(139,92,246,0.4), 0 0 80px rgba(59,130,246,0.2)',
-          }} />
-      </div>
-      {/* Text */}
-      <h1 className={`${textSize} font-black tracking-[0.15em] animate-onyx-glow select-none`}>
+    <div className="flex flex-col items-center gap-3">
+      <h1 className={`${textSize} font-black tracking-[0.2em] animate-onyx-glow select-none`}>
         ONYX
       </h1>
-      {/* Accent bar */}
-      <div className="w-10 h-[3px] rounded-full bg-gradient-to-r from-blue-500 to-purple-500 opacity-60" />
+      <div className="w-12 h-[3px] rounded-full bg-gradient-to-r from-blue-500 to-purple-500 opacity-60" />
     </div>
   )
 }
