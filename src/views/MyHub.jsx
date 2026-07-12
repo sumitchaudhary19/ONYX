@@ -537,7 +537,7 @@ function HubChat({ hub, profile, onBack, onDetails, onVault }) {
       try {
         const ext = file.name.split('.').pop()
         const filePath = `hub/${hub.id}/${Date.now()}.${ext}`
-        const bucket = 'hub_media'
+        const bucket = 'chat_images'
         const { error: upErr } = await supabase.storage.from(bucket).upload(filePath, file)
         if (upErr) throw upErr
         const { data: urlData } = supabase.storage.from(bucket).getPublicUrl(filePath)
