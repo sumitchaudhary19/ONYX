@@ -397,8 +397,14 @@ function HubChat({ hub, profile, onBack, onDetails, onVault }) {
   const [members, setMembers] = useState([])
   const [showMentions, setShowMentions] = useState(false)
   const [mentionFilter, setMentionFilter] = useState('')
+  const [toast, setToast] = useState(null)
   const scrollRef = useRef(null)
   const inputRef = useRef(null)
+
+  const showToast = (msg) => {
+    setToast(msg)
+    setTimeout(() => setToast(null), 3000)
+  }
 
   // Load messages + subscribe
   useEffect(() => {
@@ -522,16 +528,16 @@ function HubChat({ hub, profile, onBack, onDetails, onVault }) {
       if (!file) return
       // Client-side limits
       if (type === 'image' && file.size > 2 * 1024 * 1024) {
-        alert('Image must be under 2MB'); return
+        showToast('Image too large. Max size is 2MB.'); return
       }
       if (type === 'file' && file.size > 5 * 1024 * 1024) {
-        alert('File must be under 5MB'); return
+        showToast('File too large. Max size is 5MB.'); return
       }
       setSending(true)
       try {
         const ext = file.name.split('.').pop()
         const filePath = `hub/${hub.id}/${Date.now()}.${ext}`
-        const bucket = type === 'image' ? 'chat-media' : 'chat-media'
+        const bucket = 'hub_media'
         const { error: upErr } = await supabase.storage.from(bucket).upload(filePath, file)
         if (upErr) throw upErr
         const { data: urlData } = supabase.storage.from(bucket).getPublicUrl(filePath)
@@ -543,7 +549,7 @@ function HubChat({ hub, profile, onBack, onDetails, onVault }) {
         await supabase.from('hub_messages').insert(msgData)
       } catch (err) {
         console.error('[HubChat] upload error:', err)
-        alert('Upload failed: ' + err.message)
+        showToast('Upload failed: ' + err.message)
       }
       setSending(false)
     }
@@ -681,6 +687,16 @@ function HubChat({ hub, profile, onBack, onDetails, onVault }) {
           </motion.button>
         </div>
       </div>
+
+      {/* Sleek Toast Notification */}
+      <AnimatePresence>
+        {toast && (
+          <motion.div initial={{ opacity: 0, y: 20, scale: 0.9 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 20, scale: 0.9 }}
+            className="fixed bottom-20 left-1/2 -translate-x-1/2 z-[500] px-5 py-2.5 rounded-full bg-red-500/90 text-white text-xs font-bold shadow-[0_0_15px_rgba(239,68,68,0.4)] backdrop-blur-md whitespace-nowrap">
+            {toast}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }
