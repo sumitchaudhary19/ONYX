@@ -669,8 +669,27 @@ export default function OnboardingWizard({ onComplete, session }) {
   }
 
   // ── Guest Selection ──
-  const handleGuest = () => {
+  const handleGuest = async () => {
     if (localStorage.getItem('onyx_guest_account_created') === 'true') {
+      const guestId = localStorage.getItem('onyx_guest_user_id')
+      if (guestId) {
+        setLoading(true)
+        try {
+          const { data } = await supabase.from('profiles').select('id').eq('id', guestId).maybeSingle()
+          if (!data) {
+            // Self-healing: Account was deleted, clear flags
+            localStorage.removeItem('onyx_guest_account_created')
+            localStorage.removeItem('onyx_guest_user_id')
+            setAuthMode('guest')
+            goNext()
+            setLoading(false)
+            return
+          }
+        } catch (e) {
+          console.error('Guest check error', e)
+        }
+        setLoading(false)
+      }
       alert('Only one guest account can be created per device.')
       return
     }
@@ -734,6 +753,7 @@ export default function OnboardingWizard({ onComplete, session }) {
 
       if (authMode === 'guest') {
         localStorage.setItem('onyx_guest_account_created', 'true')
+        localStorage.setItem('onyx_guest_user_id', userId)
       }
 
       if (onComplete) {

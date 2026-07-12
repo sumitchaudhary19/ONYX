@@ -129,6 +129,8 @@ function DangerModal({ profile, onClose }) {
         const updated = accounts.filter(a => a.user_id !== profile?.id)
         localStorage.setItem('onyx_saved_accounts', JSON.stringify(updated))
       }
+      localStorage.removeItem('onyx_guest_account_created')
+      localStorage.removeItem('onyx_guest_user_id')
       await supabase.auth.signOut()
       navigate('/login')
     } catch (e) {
