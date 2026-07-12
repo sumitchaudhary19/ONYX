@@ -335,7 +335,16 @@ function HubSelector({ profile, hubs, memberships, onTabClick }) {
       </div>
 
       <div className="w-full max-w-sm flex flex-col gap-3">
-        {HUB_TYPES.map(ht => {
+        {HUB_TYPES
+          .filter(ht => {
+            // Section Hub only visible for 1st Year / Fresher students
+            if (ht.key === 'section') {
+              const year = (profile?.btech_year || '').toLowerCase()
+              return year === '1st year' || year === 'fresher'
+            }
+            return true
+          })
+          .map(ht => {
           const hub = hubs[ht.key]
           const isMember = memberships[ht.key]
 
