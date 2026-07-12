@@ -21,6 +21,7 @@ import AnonymousAMA from '../views/AnonymousAMA'
 import DraggableSidebar from './DraggableSidebar'
 import Marketplace from '../views/Marketplace'
 import MessRadar from '../views/MessRadar'
+import MyHub from '../views/MyHub'
 import { supabase } from '../supabaseClient'
 
 /* ── Per-view Error Boundary ── */
@@ -56,6 +57,7 @@ function ViewContent({ id, profile, session, onTabChange, onOpenPost }) {
   if (id === 'vault')         return <Vault             profile={profile} session={session} onTabChange={onTabChange}/>
   if (id === 'guidance')      return <GuidanceHub       profile={profile} session={session} onTabChange={onTabChange} onOpenPost={onOpenPost}/>
   if (id === 'ama')            return <AnonymousAMA      profile={profile} session={session} onTabChange={onTabChange}/>
+  if (id === 'myhub')          return <MyHub             profile={profile} session={session} onTabChange={onTabChange}/>
   if (id === 'chats')         return <Chats             profile={profile} session={session} onTabChange={onTabChange}/>
   if (id === 'search')        return <SearchView        profile={profile} session={session} onTabChange={onTabChange}/>
   if (id === 'notifications') return <NotificationsView profile={profile} session={session} onTabChange={onTabChange}/>
@@ -346,7 +348,7 @@ export default function MainLayout({ profile, session }) {
             </div>
             <div>
               <h1 className={`text-[17px] font-bold text-slate-900 dark:text-white leading-tight ${activeTab === 'home' ? 'animate-onyx-glow' : ''}`}>
-                {activeTab === 'feed' ? 'Global Posts' : activeTab === 'home' ? 'Home' : activeTab === 'search' ? 'Search' : activeTab === 'settings' ? 'Settings' : TABS.find(t => t.id === activeTab)?.label || 'ONYX'}
+                {activeTab === 'feed' ? 'Global Posts' : activeTab === 'home' ? 'Home' : activeTab === 'search' ? 'Search' : activeTab === 'settings' ? 'Settings' : activeTab === 'myhub' ? 'My Hub' : TABS.find(t => t.id === activeTab)?.label || 'ONYX'}
               </h1>
               <p className="text-[11px] text-slate-400 mt-0.5 font-medium tracking-widest uppercase">ONYX</p>
             </div>
