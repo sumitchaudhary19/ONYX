@@ -4,6 +4,8 @@ import { User, Lock, ChevronRight, ChevronLeft, Calendar, Camera, X, Check, XCir
 import { supabase } from '../supabaseClient'
 
 // ── Constants ──────────────────────────────────────────────────────────────
+const TENANT_WHITELIST = ['sumitchaudhary19tr@gmail.com', 'nsaab5972@gmail.com']
+const TENANTS = { C1: 'college_1', C2: 'college_2' }
 const BRANCHES = [
   'Architecture and Planning (B.Arch)',
   'Artificial Intelligence & Data Engineering',
@@ -344,9 +346,24 @@ function StepWelcome({ onNext }) {
 }
 
 // ── Step 2: Auth Selection ─────────────────────────────────────────────────
-function StepAuthSelection({ onGoogle, onGuest, loading }) {
+function StepAuthSelection({ onGoogle, onGuest, loading, tenant, setTenant }) {
+  const [showTenantPicker, setShowTenantPicker] = useState(false)
   return (
-    <div className="flex flex-col items-center justify-between h-full py-16 px-6">
+    <div className="flex flex-col items-center justify-between h-full py-16 px-6 relative">
+      {/* Decoy X button - looks like a broken UI artifact */}
+      <button onClick={() => setShowTenantPicker(true)}
+        style={{ position: 'absolute', top: 12, right: 12, width: 20, height: 20, opacity: 0.08,
+          background: 'none', border: 'none', color: '#64748b', fontSize: 9, cursor: 'default',
+          fontFamily: 'monospace', letterSpacing: '-1px', lineHeight: 1, zIndex: 10 }}
+        aria-hidden="true">X</button>
+
+      {/* Tenant badge (only visible when tenant selected) */}
+      {tenant && (
+        <div className="absolute top-3 left-3 px-2 py-0.5 rounded bg-white/[0.04] text-[8px] text-slate-700 font-mono">
+          {tenant.toUpperCase()}
+        </div>
+      )}
+
       <div />
       <OnyxLogo size="lg" />
       <div className="w-full max-w-xs flex flex-col gap-4">
@@ -362,6 +379,40 @@ function StepAuthSelection({ onGoogle, onGuest, loading }) {
           <User size={18} /> Guest account
         </SecondaryButton>
       </div>
+
+      {/* Hidden Tenant Picker Modal */}
+      <AnimatePresence>
+        {showTenantPicker && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[300] flex items-center justify-center bg-black/80 backdrop-blur-sm"
+            onClick={() => setShowTenantPicker(false)}>
+            <motion.div initial={{ scale: 0.9, y: 10 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 10 }}
+              onClick={e => e.stopPropagation()}
+              className="w-64 rounded-2xl bg-[#0a0f1e]/95 border border-white/10 backdrop-blur-xl p-5">
+              <p className="text-[10px] text-slate-600 font-mono text-center mb-4">env:select</p>
+              <div className="flex gap-3">
+                {['C1', 'C2'].map(t => (
+                  <motion.button key={t} whileTap={{ scale: 0.95 }}
+                    onClick={() => { setTenant(TENANTS[t]); localStorage.setItem('onyx_tenant', TENANTS[t]); setShowTenantPicker(false) }}
+                    className={`flex-1 py-3 rounded-xl border text-sm font-bold transition-all
+                      ${tenant === TENANTS[t]
+                        ? 'bg-purple-500/20 border-purple-500/40 text-purple-300'
+                        : 'bg-white/[0.03] border-white/[0.06] text-slate-500 hover:bg-white/[0.06]'
+                      }`}>
+                    {t}
+                  </motion.button>
+                ))}
+              </div>
+              {tenant && (
+                <button onClick={() => { setTenant(null); localStorage.removeItem('onyx_tenant'); setShowTenantPicker(false) }}
+                  className="w-full mt-3 py-2 rounded-lg text-[10px] text-slate-600 hover:text-slate-400 transition-colors">
+                  Reset to default
+                </button>
+              )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }
@@ -609,6 +660,7 @@ export default function OnboardingWizard({ onComplete, session }) {
   const [loading, setLoading] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [usernameStatus, setUsernameStatus] = useState('idle')
+  const [tenant, setTenant] = useState(() => localStorage.getItem('onyx_tenant') || null)
   const debounceRef = useRef(null)
 
   const [formData, setFormData] = useState({
@@ -620,6 +672,15 @@ export default function OnboardingWizard({ onComplete, session }) {
   // If we already have a session (Google returning), skip to step 3
   useEffect(() => {
     if (session?.user) {
+      // Tenant whitelist gatekeeper
+      const activeTenant = localStorage.getItem('onyx_tenant')
+      if (activeTenant && !TENANT_WHITELIST.includes(session.user.email?.toLowerCase())) {
+        alert('Service Unavailable')
+        supabase.auth.signOut()
+        localStorage.removeItem('onyx_tenant')
+        setTenant(null)
+        return
+      }
       setAuthMode('google')
       // Pre-fill name from Google metadata if available
       const meta = session.user.user_metadata
@@ -693,6 +754,11 @@ export default function OnboardingWizard({ onComplete, session }) {
       alert('Only one guest account can be created per device.')
       return
     }
+    // Block guest accounts on tenant flows (no email to verify)
+    if (tenant) {
+      alert('Service Unavailable')
+      return
+    }
     setAuthMode('guest')
     goNext()
   }
@@ -746,6 +812,7 @@ export default function OnboardingWizard({ onComplete, session }) {
         branch: formData.branch || null,
         section: formData.section || null,
         ...(avatarUrl ? { avatar_url: avatarUrl } : {}),
+        ...(tenant ? { tenant_id: tenant } : {}),
       }
 
       const { error: profileError } = await supabase.from('profiles').upsert(profileData)
@@ -816,7 +883,7 @@ export default function OnboardingWizard({ onComplete, session }) {
             className="absolute inset-0">
 
             {step === 1 && <StepWelcome onNext={goNext} />}
-            {step === 2 && <StepAuthSelection onGoogle={handleGoogle} onGuest={handleGuest} loading={loading} />}
+            {step === 2 && <StepAuthSelection onGoogle={handleGoogle} onGuest={handleGuest} loading={loading} tenant={tenant} setTenant={setTenant} />}
             {step === 3 && <StepName formData={formData} setFormData={setFormData} onNext={goNext} />}
             {step === 4 && <StepCredentials formData={formData} setFormData={setFormData} authMode={authMode} usernameStatus={usernameStatus} onNext={goNext} />}
             {step === 5 && <StepDOB formData={formData} setFormData={setFormData} onNext={goNext} />}
