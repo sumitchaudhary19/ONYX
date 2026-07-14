@@ -352,8 +352,8 @@ function StepAuthSelection({ onGoogle, onGuest, loading, tenant, setTenant }) {
     <div className="flex flex-col items-center justify-between h-full py-16 px-6 relative">
       {/* Decoy X button - looks like a broken UI artifact */}
       <button onClick={() => setShowTenantPicker(true)}
-        style={{ position: 'absolute', top: 12, right: 12, width: 20, height: 20, opacity: 0.08,
-          background: 'none', border: 'none', color: '#64748b', fontSize: 9, cursor: 'default',
+        style={{ position: 'absolute', top: 14, right: 14, width: 22, height: 22, opacity: 0.22,
+          background: 'none', border: 'none', color: '#94a3b8', fontSize: 10, cursor: 'default',
           fontFamily: 'monospace', letterSpacing: '-1px', lineHeight: 1, zIndex: 10 }}
         aria-hidden="true">X</button>
 
