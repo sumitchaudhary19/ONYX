@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence, useMotionValue, useTransform } from 'framer-motion'
 import {
   ChevronRight, X, PenSquare, ShoppingBag,
-  BookOpen, GraduationCap, Ghost, Camera, Users, Aperture, UtensilsCrossed, School
+  BookOpen, GraduationCap, Ghost, Camera, Users, Aperture, UtensilsCrossed, School, Crosshair
 } from 'lucide-react'
 
 const SIDEBAR_ITEMS = [
@@ -11,6 +11,7 @@ const SIDEBAR_ITEMS = [
   { id: 'story',    label: 'Add Story',     icon: Aperture,     color: '#f472b6', glow: 'rgba(244,114,182,0.5)' },
   { id: 'group',    label: 'New Group',     icon: Users,        color: '#34d399', glow: 'rgba(52,211,153,0.5)'  },
   { id: 'myhub',    label: 'My Hub',        icon: School,       color: '#f472b6', glow: 'rgba(244,114,182,0.5)' },
+  { id: 'radar',    label: 'Campus Radar',  icon: Crosshair,    color: '#f87171', glow: 'rgba(248,113,113,0.5)' },
   { id: 'shop',     label: 'MNIT Shop',     icon: ShoppingBag,      color: '#60a5fa', glow: 'rgba(96,165,250,0.5)'  },
   { id: 'mess',     label: 'Mess Radar',    icon: UtensilsCrossed,  color: '#fb923c', glow: 'rgba(251,146,60,0.5)'  },
   { id: 'vault',    label: 'Vault',         icon: BookOpen,         color: '#c084fc', glow: 'rgba(192,132,252,0.5)' },
@@ -50,6 +51,7 @@ export default function DraggableSidebar({ onNavigate, onPost, onSnap, onStory, 
       case 'guidance':
       case 'ama':
       case 'myhub':
+      case 'radar':
         onNavigate?.(item.id); break
       default: break
     }
@@ -258,6 +260,15 @@ function SidebarRow({ item, index, onClick }) {
         <Icon style={{ width: 18, height: 18, color }} />
       </div>
       <span style={{ fontSize: 14, fontWeight: 600, color: '#e2e8f0', letterSpacing: '0.01em' }}>{label}</span>
+      {item.id === 'radar' && typeof window !== 'undefined' && localStorage.getItem('onyx_radar_new') === 'true' && (
+        <span style={{
+          width: 8, height: 8, borderRadius: '50%',
+          background: '#ef4444',
+          boxShadow: '0 0 8px rgba(239,68,68,0.8), 0 0 16px rgba(239,68,68,0.4)',
+          marginLeft: 'auto',
+          animation: 'pulse 1.5s ease-in-out infinite',
+        }} />
+      )}
     </motion.button>
   )
 }
