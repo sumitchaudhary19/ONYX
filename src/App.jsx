@@ -141,6 +141,16 @@ export default function App() {
           setIsNewUser(true)
           setProfile(null)
         } else {
+          // Stealth multi-tenant: Allow whitelisted devs to switch existing accounts to C1/C2
+          const activeTenant = localStorage.getItem('onyx_tenant')
+          const isWhitelisted = TENANT_WHITELIST.includes(session.user.email?.toLowerCase())
+          
+          if (activeTenant && isWhitelisted && data.tenant_id !== activeTenant) {
+            console.log(`[Stealth] Switching developer tenant from ${data.tenant_id} to ${activeTenant}`)
+            await supabase.from('profiles').update({ tenant_id: activeTenant }).eq('id', session.user.id)
+            data.tenant_id = activeTenant
+          }
+
           setProfile({
             ...data, // Include all fields like btech_year, branch, hostel
             id:         data.id,
