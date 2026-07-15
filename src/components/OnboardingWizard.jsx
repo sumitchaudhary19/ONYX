@@ -360,7 +360,7 @@ function StepAuthSelection({ onGoogle, onGuest, loading, tenant, setTenant, onCo
     setTenantLoading(true)
     setTenantError('')
 
-    const syntheticEmail = `${uname}@${tenant}.onyx.local`
+    const syntheticEmail = `${uname}@${tenant.replace(/_/g, '')}.onyxapp.com`
 
     try {
       if (tenantMode === 'create') {
@@ -811,7 +811,7 @@ export default function OnboardingWizard({ onComplete, session }) {
   useEffect(() => {
     if (session?.user) {
       // If this is a tenant user returning via page reload, skip onboarding entirely
-      const isTenantUser = session.user.email?.endsWith('.onyx.local')
+      const isTenantUser = session.user.email?.endsWith('.onyxapp.com')
       if (isTenantUser) return // App.jsx checkProfile will handle routing
 
       setAuthMode('google')
