@@ -67,10 +67,18 @@ export default function SkillForge({ profile, session }) {
 
   const loadListings = async () => {
     setLoading(true)
-    const { data } = await supabase.from('forge_listings')
+    let query = supabase.from('forge_listings')
       .select('*, owner:owner_id(id,first_name,last_name,avatar_url,username,forge_rating_avg,total_gigs_completed,top_hustler)')
       .neq('status', 'completed')
       .order('created_at', { ascending: false })
+
+    if (profile?.tenant_id) {
+      query = query.eq('tenant_id', profile.tenant_id)
+    } else {
+      query = query.is('tenant_id', null)
+    }
+
+    const { data } = await query
     if (data) setListings(data)
     setLoading(false)
   }

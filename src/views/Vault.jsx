@@ -59,6 +59,12 @@ export default function Vault({ profile }) {
         .from('vault_links')
         .select('*')
         .lt('reports_count', 3)
+        
+      if (profile?.tenant_id) {
+        q = q.eq('tenant_id', profile.tenant_id)
+      } else {
+        q = q.is('tenant_id', null)
+      }
 
       if (yearFilter   !== 'All') q = q.eq('btech_year', yearFilter)
       if (branchFilter !== 'All') q = q.eq('branch', branchFilter)

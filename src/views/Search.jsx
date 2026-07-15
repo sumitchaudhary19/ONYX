@@ -51,12 +51,19 @@ export default function SearchView({ profile }) {
   async function loadSuggestions() {
     setLoading(true)
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('profiles')
         .select('id, first_name, last_name, username, avatar_url, bio')
         .neq('id', profile.id)
         .order('updated_at', { ascending: false })
-        .limit(20)
+        
+      if (profile?.tenant_id) {
+        query = query.eq('tenant_id', profile.tenant_id)
+      } else {
+        query = query.is('tenant_id', null)
+      }
+
+      const { data, error } = await query.limit(20)
 
       if (error) {
         console.error('[Search] loadSuggestions error:', error)
@@ -134,6 +141,12 @@ export default function SearchView({ profile }) {
         .select('id, first_name, last_name, username, avatar_url, bio')
         .neq('id', profile.id)
         .or(`username.ilike.%${safe}%,first_name.ilike.%${safe}%,last_name.ilike.%${safe}%`)
+      
+      if (profile?.tenant_id) {
+        req = req.eq('tenant_id', profile.tenant_id)
+      } else {
+        req = req.is('tenant_id', null)
+      }
       
       if (years && years.length > 0) {
         req = req.in('btech_year', years)

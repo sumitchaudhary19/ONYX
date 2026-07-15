@@ -68,6 +68,10 @@ export default function MyHub({ profile, session }) {
       for (const ht of HUB_TYPES) {
         // Build match query
         let q = supabase.from('hubs').select('*').eq('type', ht.key)
+        
+        if (profile?.tenant_id) q = q.eq('tenant_id', profile.tenant_id)
+        else q = q.is('tenant_id', null)
+
         for (const f of ht.matchFields) {
           if (profile[f]) q = q.eq(f, profile[f])
         }
@@ -109,6 +113,7 @@ export default function MyHub({ profile, session }) {
         section: (type !== 'core') ? (profile.section || null) : null,
         name: hubName,
         cr_id: profile.id,
+        ...(profile?.tenant_id ? { tenant_id: profile.tenant_id } : {})
       }
 
       const { data: newHub, error } = await supabase.from('hubs').insert(insertData).select().single()

@@ -3,6 +3,7 @@ import { supabase } from '../supabaseClient'
 import { PostCard } from './Feed'
 import { Sparkles, Aperture, Eye, X, Play, Trash2, Users, UserPlus } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { getCampusAcronym } from '../utils/campusUtils'
 
 function StoryViewsModal({ story, onClose }) {
   const [views, setViews] = useState([])
@@ -162,12 +163,20 @@ export default function HomeFeed({ profile }) {
         setActiveStory(null)
       }
 
-      // Load ALL public posts instead of just friends
-      const { data: rawPosts } = await supabase
+      // Load ALL public posts instead
+      let postsQuery = supabase
         .from('posts')
         .select('*,profiles:user_id(id,first_name,last_name,avatar_url)')
         .order('created_at', { ascending: false })
         .limit(20)
+
+      if (profile?.tenant_id) {
+        postsQuery = postsQuery.eq('tenant_id', profile.tenant_id)
+      } else {
+        postsQuery = postsQuery.is('tenant_id', null)
+      }
+      
+      const { data: rawPosts } = await postsQuery
       
       if (!rawPosts || rawPosts.length === 0) { 
         setPosts([])
@@ -213,6 +222,12 @@ export default function HomeFeed({ profile }) {
         .select('id, first_name, last_name, username, avatar_url, branch, btech_year, section')
         .neq('id', profile.id)
       
+      if (profile?.tenant_id) {
+        query = query.eq('tenant_id', profile.tenant_id)
+      } else {
+        query = query.is('tenant_id', null)
+      }
+
       if (profile.branch) query = query.eq('branch', profile.branch)
       if (profile.btech_year === '1st Year' && profile.section) {
         query = query.eq('section', profile.section)
@@ -275,11 +290,19 @@ export default function HomeFeed({ profile }) {
     setLoadingMore(true)
     try {
       const myId = profile?.id
-      const { data: rawPosts } = await supabase
+      let postsQuery = supabase
         .from('posts')
         .select('*,profiles:user_id(id,first_name,last_name,avatar_url)')
         .order('created_at', { ascending: false })
         .range(posts.length, posts.length + 19)
+
+      if (profile?.tenant_id) {
+        postsQuery = postsQuery.eq('tenant_id', profile.tenant_id)
+      } else {
+        postsQuery = postsQuery.is('tenant_id', null)
+      }
+
+      const { data: rawPosts } = await postsQuery
       
       if (!rawPosts || rawPosts.length === 0) { 
         setHasMore(false)
@@ -321,8 +344,12 @@ export default function HomeFeed({ profile }) {
             <Sparkles className="w-5 h-5 text-white" />
           </div>
           <div>
-            <h2 className="text-[18px] font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-violet-400 drop-shadow-[0_0_8px_rgba(96,165,250,0.4)] tracking-wide">MNIT FEED</h2>
-            <p className="text-[11px] text-slate-400 font-medium tracking-wide">LATEST FROM MNIT</p>
+            <h2 className="text-[18px] font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-violet-400 drop-shadow-[0_0_8px_rgba(96,165,250,0.4)] tracking-wide">
+              {getCampusAcronym(profile?.tenant_id)} FEED
+            </h2>
+            <p className="text-[11px] text-slate-400 font-medium tracking-wide">
+              LATEST FROM {getCampusAcronym(profile?.tenant_id)}
+            </p>
           </div>
         </div>
       </div>

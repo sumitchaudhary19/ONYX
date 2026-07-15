@@ -194,10 +194,14 @@ export default function MessRadar({ profile, onClose }) {
   const fetchMenu = useCallback(async () => {
     setMenuLoading(true)
     try {
-      const { data } = await supabase
+      let q = supabase
         .from('mess_menus').select('items')
         .eq('day_of_week', dayName).eq('meal_type', selectedMeal)
-        .limit(1).maybeSingle()
+
+      if (profile?.tenant_id) q = q.eq('tenant_id', profile.tenant_id)
+      else q = q.is('tenant_id', null)
+
+      const { data } = await q.limit(1).maybeSingle()
       setMenuItems(data?.items || '')
     } catch (err) { console.error('[MessRadar] fetchMenu:', err) }
     finally { setMenuLoading(false) }
@@ -207,9 +211,14 @@ export default function MessRadar({ profile, onClose }) {
   const fetchVotes = useCallback(async () => {
     try {
       const today = new Date().toISOString().split('T')[0]
-      const { data } = await supabase
+      let q = supabase
         .from('mess_votes').select('vote_option, user_id')
         .eq('meal_type', selectedMeal).eq('vote_date', today)
+
+      if (profile?.tenant_id) q = q.eq('tenant_id', profile.tenant_id)
+      else q = q.is('tenant_id', null)
+
+      const { data } = await q
       const counts = { tasty: 0, average: 0, skip: 0 }
       let myVote = null
       ;(data || []).forEach(v => {
