@@ -8,8 +8,6 @@ import ChatRoom from './views/ChatRoom'
 import GroupChatRoom from './views/GroupChatRoom'
 import { ThemeProvider } from './contexts/ThemeContext'
 
-const TENANT_WHITELIST = ['sumitchaudhary19tr@gmail.com', 'nsaab5972@gmail.com']
-
 /* ── Error Boundary (catches React render crashes) ───── */
 class ErrorBoundary extends Component {
   constructor(props) { super(props); this.state = { hasError: false, error: null } }
@@ -64,9 +62,7 @@ export default function App() {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (window.__GUEST_TRANSITION__) return
       const isGoogle = session?.user?.app_metadata?.provider === 'google'
-      const hasTenant = !!localStorage.getItem('onyx_tenant')
-      const isWhitelisted = TENANT_WHITELIST.includes(session?.user?.email?.toLowerCase())
-      if (session?.user && isGoogle && !session.user.email.endsWith('@mnit.ac.in') && !(hasTenant && isWhitelisted)) {
+      if (session?.user && isGoogle && !session.user.email.endsWith('@mnit.ac.in')) {
         supabase.auth.signOut()
         localStorage.setItem('login_error', 'Access Denied: Only MNIT students (@mnit.ac.in) can log in.')
         setSession(null)
@@ -84,9 +80,7 @@ export default function App() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (window.__GUEST_TRANSITION__) return
       const isGoogle = session?.user?.app_metadata?.provider === 'google'
-      const hasTenant = !!localStorage.getItem('onyx_tenant')
-      const isWhitelisted = TENANT_WHITELIST.includes(session?.user?.email?.toLowerCase())
-      if (session?.user && isGoogle && !session.user.email.endsWith('@mnit.ac.in') && !(hasTenant && isWhitelisted)) {
+      if (session?.user && isGoogle && !session.user.email.endsWith('@mnit.ac.in')) {
         await supabase.auth.signOut()
         localStorage.setItem('login_error', 'Access Denied: Only MNIT students (@mnit.ac.in) can log in.')
         setSession(null)
@@ -109,7 +103,7 @@ export default function App() {
         }
       }
       
-      if (!session || (session?.user && isGoogle && !session.user.email.endsWith('@mnit.ac.in') && !(hasTenant && isWhitelisted))) {
+      if (!session || (session?.user && isGoogle && !session.user.email.endsWith('@mnit.ac.in'))) {
         setProfile(null)
         setIsNewUser(false)
       }
@@ -141,16 +135,6 @@ export default function App() {
           setIsNewUser(true)
           setProfile(null)
         } else {
-          // Stealth multi-tenant: Allow whitelisted devs to switch existing accounts to C1/C2
-          const activeTenant = localStorage.getItem('onyx_tenant')
-          const isWhitelisted = TENANT_WHITELIST.includes(session.user.email?.toLowerCase())
-          
-          if (activeTenant && isWhitelisted && data.tenant_id !== activeTenant) {
-            console.log(`[Stealth] Switching developer tenant from ${data.tenant_id} to ${activeTenant}`)
-            await supabase.from('profiles').update({ tenant_id: activeTenant }).eq('id', session.user.id)
-            data.tenant_id = activeTenant
-          }
-
           setProfile({
             ...data, // Include all fields like btech_year, branch, hostel
             id:         data.id,

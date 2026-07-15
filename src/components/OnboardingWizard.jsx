@@ -4,7 +4,6 @@ import { User, Lock, ChevronRight, ChevronLeft, Calendar, Camera, X, Check, XCir
 import { supabase } from '../supabaseClient'
 
 // ── Constants ──────────────────────────────────────────────────────────────
-const TENANT_WHITELIST = ['sumitchaudhary19tr@gmail.com', 'nsaab5972@gmail.com']
 const TENANTS = { C1: 'college_1', C2: 'college_2' }
 const BRANCHES = [
   'Architecture and Planning (B.Arch)',
@@ -346,8 +345,91 @@ function StepWelcome({ onNext }) {
 }
 
 // ── Step 2: Auth Selection ─────────────────────────────────────────────────
-function StepAuthSelection({ onGoogle, onGuest, loading, tenant, setTenant }) {
+function StepAuthSelection({ onGoogle, onGuest, loading, tenant, setTenant, onComplete }) {
   const [showTenantPicker, setShowTenantPicker] = useState(false)
+  const [tenantMode, setTenantMode] = useState('create') // 'create' | 'login'
+  const [tenantUsername, setTenantUsername] = useState('')
+  const [tenantPassword, setTenantPassword] = useState('')
+  const [tenantLoading, setTenantLoading] = useState(false)
+  const [tenantError, setTenantError] = useState('')
+
+  const handleTenantAuth = async () => {
+    const uname = tenantUsername.trim().toLowerCase().replace(/[^a-z0-9_]/g, '')
+    if (uname.length < 3) { setTenantError('Username must be at least 3 characters'); return }
+    if (tenantPassword.length < 6) { setTenantError('Password must be at least 6 characters'); return }
+    setTenantLoading(true)
+    setTenantError('')
+
+    const syntheticEmail = `${uname}@${tenant}.onyx.local`
+
+    try {
+      if (tenantMode === 'create') {
+        // Check if username is taken in this tenant
+        const { data: existing } = await supabase.from('profiles')
+          .select('id').eq('username', uname).eq('tenant_id', tenant).maybeSingle()
+        if (existing) { setTenantError('Username already taken in this environment'); setTenantLoading(false); return }
+
+        // Sign up with synthetic email
+        window.__GUEST_TRANSITION__ = true
+        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+          email: syntheticEmail,
+          password: tenantPassword,
+        })
+        if (signUpError) throw signUpError
+
+        const userId = signUpData.user.id
+
+        // Create minimal profile
+        const profileData = {
+          id: userId,
+          first_name: uname,
+          last_name: '',
+          username: uname,
+          tenant_id: tenant,
+          btech_year: 'Fresher',
+        }
+        const { error: profileError } = await supabase.from('profiles').upsert(profileData)
+        if (profileError) throw profileError
+
+        // Notify App.jsx
+        if (onComplete) {
+          onComplete({
+            id: userId,
+            firstName: uname,
+            lastName: '',
+            username: uname,
+            avatarUrl: null,
+            ...profileData,
+          })
+        }
+        window.__GUEST_TRANSITION__ = false
+        window.location.href = '/chat'
+
+      } else {
+        // Login with existing tenant account
+        const { error: loginError } = await supabase.auth.signInWithPassword({
+          email: syntheticEmail,
+          password: tenantPassword,
+        })
+        if (loginError) {
+          if (loginError.message?.includes('Invalid login')) {
+            setTenantError('Invalid username or password')
+          } else {
+            setTenantError(loginError.message)
+          }
+          setTenantLoading(false)
+          return
+        }
+        window.location.href = '/chat'
+      }
+    } catch (err) {
+      console.error('[Tenant Auth]', err)
+      setTenantError(err.message || 'Something went wrong')
+      window.__GUEST_TRANSITION__ = false
+      setTenantLoading(false)
+    }
+  }
+
   return (
     <div className="flex flex-col items-center justify-between h-full py-16 px-6 relative">
       {/* Decoy X button - looks like a broken UI artifact */}
@@ -366,19 +448,75 @@ function StepAuthSelection({ onGoogle, onGuest, loading, tenant, setTenant }) {
 
       <div />
       <OnyxLogo size="lg" />
-      <div className="w-full max-w-xs flex flex-col gap-4">
-        <motion.div animate={{ boxShadow: ['0 0 15px rgba(59,130,246,0.2)', '0 0 30px rgba(59,130,246,0.4)', '0 0 15px rgba(59,130,246,0.2)'] }}
-          transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
-          className="rounded-full">
-          <SecondaryButton onClick={onGoogle} disabled={loading}
-            className="!border-blue-500/30 !bg-blue-500/[0.07] hover:!bg-blue-500/[0.12]">
-            <GoogleIcon /> Create account with Google
+
+      {/* ── Tenant Direct Auth Form (shown when C1/C2 is active) ── */}
+      {tenant ? (
+        <div className="w-full max-w-xs flex flex-col gap-3">
+          {/* Create / Login tabs */}
+          <div className="flex gap-1 p-1 rounded-xl bg-white/[0.04] border border-white/[0.06]">
+            {['create', 'login'].map(m => (
+              <button key={m} onClick={() => { setTenantMode(m); setTenantError('') }}
+                className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-all
+                  ${tenantMode === m
+                    ? 'bg-purple-500/20 text-purple-300 shadow-sm'
+                    : 'text-slate-500 hover:text-slate-400'
+                  }`}>
+                {m === 'create' ? 'Create Account' : 'Login'}
+              </button>
+            ))}
+          </div>
+
+          {/* Username */}
+          <div className="capsule-field">
+            <User size={16} className="text-slate-500 flex-shrink-0" />
+            <input type="text" placeholder="Username" value={tenantUsername}
+              onChange={e => setTenantUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
+              className="bg-transparent flex-1 outline-none text-white text-sm placeholder:text-slate-600" />
+          </div>
+
+          {/* Password */}
+          <div className="capsule-field">
+            <Lock size={16} className="text-slate-500 flex-shrink-0" />
+            <input type="password" placeholder="Password (min 6 chars)" value={tenantPassword}
+              onChange={e => setTenantPassword(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleTenantAuth()}
+              className="bg-transparent flex-1 outline-none text-white text-sm placeholder:text-slate-600" />
+          </div>
+
+          {/* Error */}
+          {tenantError && (
+            <motion.p initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }}
+              className="text-xs text-red-400 text-center px-2">{tenantError}</motion.p>
+          )}
+
+          {/* Submit */}
+          <motion.div animate={{ boxShadow: ['0 0 12px rgba(139,92,246,0.2)', '0 0 24px rgba(139,92,246,0.4)', '0 0 12px rgba(139,92,246,0.2)'] }}
+            transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+            className="rounded-full mt-1">
+            <PrimaryButton onClick={handleTenantAuth} disabled={tenantLoading} glow="purple">
+              {tenantLoading
+                ? <><Loader2 size={16} className="animate-spin" /> Processing...</>
+                : <><ChevronRight size={16} /> {tenantMode === 'create' ? 'Create & Enter' : 'Login'}</>
+              }
+            </PrimaryButton>
+          </motion.div>
+        </div>
+      ) : (
+        /* ── Standard Auth Buttons (MNIT production) ── */
+        <div className="w-full max-w-xs flex flex-col gap-4">
+          <motion.div animate={{ boxShadow: ['0 0 15px rgba(59,130,246,0.2)', '0 0 30px rgba(59,130,246,0.4)', '0 0 15px rgba(59,130,246,0.2)'] }}
+            transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
+            className="rounded-full">
+            <SecondaryButton onClick={onGoogle} disabled={loading}
+              className="!border-blue-500/30 !bg-blue-500/[0.07] hover:!bg-blue-500/[0.12]">
+              <GoogleIcon /> Create account with Google
+            </SecondaryButton>
+          </motion.div>
+          <SecondaryButton onClick={onGuest} disabled={loading}>
+            <User size={18} /> Guest account
           </SecondaryButton>
-        </motion.div>
-        <SecondaryButton onClick={onGuest} disabled={loading}>
-          <User size={18} /> Guest account
-        </SecondaryButton>
-      </div>
+        </div>
+      )}
 
       {/* Hidden Tenant Picker Modal */}
       <AnimatePresence>
@@ -672,15 +810,10 @@ export default function OnboardingWizard({ onComplete, session }) {
   // If we already have a session (Google returning), skip to step 3
   useEffect(() => {
     if (session?.user) {
-      // Tenant whitelist gatekeeper
-      const activeTenant = localStorage.getItem('onyx_tenant')
-      if (activeTenant && !TENANT_WHITELIST.includes(session.user.email?.toLowerCase())) {
-        alert('Service Unavailable')
-        supabase.auth.signOut()
-        localStorage.removeItem('onyx_tenant')
-        setTenant(null)
-        return
-      }
+      // If this is a tenant user returning via page reload, skip onboarding entirely
+      const isTenantUser = session.user.email?.endsWith('.onyx.local')
+      if (isTenantUser) return // App.jsx checkProfile will handle routing
+
       setAuthMode('google')
       // Pre-fill name from Google metadata if available
       const meta = session.user.user_metadata
@@ -754,11 +887,7 @@ export default function OnboardingWizard({ onComplete, session }) {
       alert('Only one guest account can be created per device.')
       return
     }
-    // Block guest accounts on tenant flows (no email to verify)
-    if (tenant) {
-      alert('Service Unavailable')
-      return
-    }
+
     setAuthMode('guest')
     goNext()
   }
@@ -883,7 +1012,7 @@ export default function OnboardingWizard({ onComplete, session }) {
             className="absolute inset-0">
 
             {step === 1 && <StepWelcome onNext={goNext} />}
-            {step === 2 && <StepAuthSelection onGoogle={handleGoogle} onGuest={handleGuest} loading={loading} tenant={tenant} setTenant={setTenant} />}
+            {step === 2 && <StepAuthSelection onGoogle={handleGoogle} onGuest={handleGuest} loading={loading} tenant={tenant} setTenant={setTenant} onComplete={onComplete} />}
             {step === 3 && <StepName formData={formData} setFormData={setFormData} onNext={goNext} />}
             {step === 4 && <StepCredentials formData={formData} setFormData={setFormData} authMode={authMode} usernameStatus={usernameStatus} onNext={goNext} />}
             {step === 5 && <StepDOB formData={formData} setFormData={setFormData} onNext={goNext} />}
