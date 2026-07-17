@@ -735,6 +735,30 @@ function StepProfile({ formData, setFormData, submitting, onSubmit }) {
             <span className="text-[10px] text-slate-600 self-end flex-shrink-0">{formData.bio.length}/120</span>
           </div>
         </div>
+
+        {/* Pulse Opt-In Toggle */}
+        <div className="w-full mt-4 flex items-center justify-between p-4 rounded-2xl bg-white/5 border border-white/10">
+          <div className="flex flex-col gap-1 pr-4">
+            <p className="text-sm font-bold text-white flex items-center gap-1.5">
+              <Sparkles size={16} className="text-cyan-400" /> ONYX Pulse
+            </p>
+            <p className="text-[10px] text-slate-400 leading-snug">
+              Opt-in to the serendipity engine to discover and be discovered by students across campuses.
+            </p>
+          </div>
+          <button
+            onClick={() => setFormData(p => ({ ...p, isPulseActive: !p.isPulseActive }))}
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+              formData.isPulseActive ? 'bg-cyan-500' : 'bg-slate-700'
+            }`}
+          >
+            <span
+              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                formData.isPulseActive ? 'translate-x-6' : 'translate-x-1'
+              }`}
+            />
+          </button>
+        </div>
       </div>
 
       {/* Submit */}
@@ -772,7 +796,7 @@ export default function OnboardingWizard({ onComplete, session }) {
   const [formData, setFormData] = useState({
     firstName: '', lastName: '', username: '', password: '',
     dob: '', btechYear: '', branch: '', section: '', bio: '',
-    avatarFile: null,
+    avatarFile: null, isPulseActive: true
   })
 
   // If we already have a session (Google returning), skip to step 3
@@ -911,6 +935,7 @@ export default function OnboardingWizard({ onComplete, session }) {
         btech_year: formData.btechYear || (authMode === 'guest' ? 'Fresher' : null),
         branch: formData.branch || null,
         section: formData.section || null,
+        is_pulse_active: formData.isPulseActive,
         ...(avatarUrl ? { avatar_url: avatarUrl } : {}),
         ...(tenant ? { tenant_id: tenant } : {}),
       }

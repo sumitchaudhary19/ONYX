@@ -22,6 +22,7 @@ FOR SELECT USING (
   tenant_id = public.get_auth_tenant_id()
   OR (tenant_id IS NULL AND public.get_auth_tenant_id() IS NULL)
   OR id = auth.uid()
+  OR (is_pulse_active = true AND (SELECT is_pulse_active FROM public.profiles WHERE id = auth.uid()) = true)
 );
 
 CREATE POLICY "Users can update own profile" ON profiles

@@ -19,6 +19,7 @@ function Toast({ message, icon: Icon, color = '#60a5fa', onClose }) {
 function PrivacyModal({ profile, onClose }) {
   const [blocked, setBlocked] = useState([])
   const [loading, setLoading] = useState(true)
+  const [isPulseActive, setIsPulseActive] = useState(profile?.is_pulse_active ?? false)
 
   useEffect(() => {
     async function load() {
@@ -38,15 +39,35 @@ function PrivacyModal({ profile, onClose }) {
     setBlocked(prev => prev.filter(p => p.id !== userId))
   }
 
+  const togglePulse = async () => {
+    const val = !isPulseActive
+    setIsPulseActive(val)
+    await supabase.from('profiles').update({ is_pulse_active: val }).eq('id', profile.id)
+  }
+
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}
       style={{ position: 'fixed', inset: 0, zIndex: 500, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
       <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }} onClick={e => e.stopPropagation()}
         style={{ width: '100%', maxWidth: '420px', background: 'linear-gradient(180deg,#0f172a,#020617)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '24px', padding: '24px', display: 'flex', flexDirection: 'column', maxHeight: '70vh' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-          <h3 style={{ fontSize: '16px', fontWeight: 700, color: '#f8fafc' }}>Blocked Users</h3>
+          <h3 style={{ fontSize: '16px', fontWeight: 700, color: '#f8fafc' }}>Privacy Settings</h3>
           <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.07)', border: 'none', borderRadius: '8px', padding: '6px', cursor: 'pointer', color: '#94a3b8', display: 'flex' }}><X style={{ width: 14, height: 14 }} /></button>
         </div>
+
+        {/* Pulse Toggle */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px', background: 'rgba(255,255,255,0.03)', borderRadius: '16px', marginBottom: '16px', border: '1px solid rgba(255,255,255,0.05)' }}>
+          <div>
+            <p style={{ fontSize: '14px', fontWeight: 600, color: '#f1f5f9', display: 'flex', alignItems: 'center', gap: '6px' }}>ONYX Pulse</p>
+            <p style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>Discover and be discovered across campuses</p>
+          </div>
+          <motion.div onClick={togglePulse} style={{ width: 44, height: 24, borderRadius: '12px', background: isPulseActive ? '#3b82f6' : 'rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', padding: '2px', cursor: 'pointer', justifyContent: isPulseActive ? 'flex-end' : 'flex-start', flexShrink: 0 }}>
+            <motion.div layout style={{ width: 20, height: 20, borderRadius: '10px', background: '#fff', boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }} />
+          </motion.div>
+        </div>
+
+        <h4 style={{ fontSize: '13px', fontWeight: 700, color: '#94a3b8', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Blocked Users</h4>
+
         <div style={{ overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '8px' }}>
           {loading && <p style={{ color: '#64748b', fontSize: '13px', textAlign: 'center', padding: '20px' }}>Loading…</p>}
           {!loading && blocked.length === 0 && <p style={{ color: '#64748b', fontSize: '13px', textAlign: 'center', padding: '20px' }}>No blocked users.</p>}
