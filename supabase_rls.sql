@@ -6,7 +6,12 @@ CREATE OR REPLACE FUNCTION public.get_auth_tenant_id() RETURNS text AS $$
   SELECT tenant_id FROM public.profiles WHERE id = auth.uid() LIMIT 1;
 $$ LANGUAGE sql SECURITY DEFINER STABLE;
 
--- 2. Enable RLS on all relevant tables
+-- 2. Create a helper function to get the current user's pulse status efficiently
+CREATE OR REPLACE FUNCTION public.get_auth_pulse_active() RETURNS boolean AS $$
+  SELECT is_pulse_active FROM public.profiles WHERE id = auth.uid() LIMIT 1;
+$$ LANGUAGE sql SECURITY DEFINER STABLE;
+
+-- 3. Enable RLS on all relevant tables
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE posts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE vault_links ENABLE ROW LEVEL SECURITY;
@@ -15,14 +20,14 @@ ALTER TABLE mess_menus ENABLE ROW LEVEL SECURITY;
 ALTER TABLE mess_votes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE hubs ENABLE ROW LEVEL SECURITY;
 
--- 3. Profiles Policies
+-- 4. Profiles Policies
 -- Users can read profiles from their own tenant, OR read their own profile
 CREATE POLICY "Tenant isolation for profiles select" ON profiles
 FOR SELECT USING (
   tenant_id = public.get_auth_tenant_id()
   OR (tenant_id IS NULL AND public.get_auth_tenant_id() IS NULL)
   OR id = auth.uid()
-  OR (is_pulse_active = true AND (SELECT is_pulse_active FROM public.profiles WHERE id = auth.uid()) = true)
+  OR (is_pulse_active = true AND public.get_auth_pulse_active() = true)
 );
 
 CREATE POLICY "Users can update own profile" ON profiles
