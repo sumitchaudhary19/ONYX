@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence, useMotionValue, useTransform } from 'framer-motion'
 import {
   ChevronRight, X, PenSquare, ShoppingBag,
-  BookOpen, GraduationCap, Ghost, Camera, Users, Aperture, UtensilsCrossed, School, Crosshair, Zap
+  BookOpen, GraduationCap, Ghost, Camera, Users, Aperture, UtensilsCrossed, School, Crosshair, Zap, Orbit
 } from 'lucide-react'
 
 const SIDEBAR_ITEMS = [
@@ -10,6 +10,7 @@ const SIDEBAR_ITEMS = [
   { id: 'snap',     label: 'Snap Camera',   icon: Camera,       color: '#fbbf24', glow: 'rgba(251,191,36,0.5)'  },
   { id: 'story',    label: 'Add Story',     icon: Aperture,     color: '#f472b6', glow: 'rgba(244,114,182,0.5)' },
   { id: 'group',    label: 'New Group',     icon: Users,        color: '#34d399', glow: 'rgba(52,211,153,0.5)'  },
+  { id: 'pulse',    label: 'ONYX Pulse',    icon: Orbit,        color: '#06b6d4', glow: 'rgba(6,182,212,0.5)'   },
   { id: 'myhub',    label: 'My Hub',        icon: School,       color: '#f472b6', glow: 'rgba(244,114,182,0.5)' },
   { id: 'radar',    label: 'Campus Radar',  icon: Crosshair,    color: '#f87171', glow: 'rgba(248,113,113,0.5)' },
   { id: 'forge',    label: 'Skill-Forge',   icon: Zap,          color: '#fbbf24', glow: 'rgba(251,191,36,0.5)'  },

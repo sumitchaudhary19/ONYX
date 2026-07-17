@@ -24,6 +24,7 @@ import MessRadar from '../views/MessRadar'
 import MyHub from '../views/MyHub'
 import CampusRadar from '../views/CampusRadar'
 import SkillForge from '../views/SkillForge'
+import OnyxPulse from '../views/OnyxPulse'
 import { supabase } from '../supabaseClient'
 
 /* ── Per-view Error Boundary ── */
@@ -62,6 +63,7 @@ function ViewContent({ id, profile, session, onTabChange, onOpenPost }) {
   if (id === 'myhub')          return <MyHub             profile={profile} session={session} onTabChange={onTabChange}/>
   if (id === 'radar')          return <CampusRadar       profile={profile} session={session} onTabChange={onTabChange}/>
   if (id === 'forge')          return <SkillForge        profile={profile} session={session} onTabChange={onTabChange}/>
+  if (id === 'pulse')          return <OnyxPulse          profile={profile} session={session} onTabChange={onTabChange}/>
   if (id === 'chats')         return <Chats             profile={profile} session={session} onTabChange={onTabChange}/>
   if (id === 'search')        return <SearchView        profile={profile} session={session} onTabChange={onTabChange}/>
   if (id === 'notifications') return <NotificationsView profile={profile} session={session} onTabChange={onTabChange}/>
