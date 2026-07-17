@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { motion, AnimatePresence, useMotionValue, useTransform } from 'framer-motion'
 import { supabase } from '../supabaseClient'
 import { getCampusAcronym } from '../utils/campusUtils'
-import { ArrowLeft, Zap, X, Send, Clock, Sparkles, ChevronUp, RotateCcw } from 'lucide-react'
+import { ArrowLeft, Zap, X, Send, Clock, Sparkles, ChevronUp, RotateCcw, Search, Plus } from 'lucide-react'
 
 // ── Constants ──
 const DAILY_LIMIT = 15
@@ -49,100 +49,284 @@ function getCountdown() {
   return `${h}:${m}:${s}`
 }
 
+// ── Vibe Check ──
+const VIBE_CATEGORIES = [
+  { name: 'The Builder', tags: ['Python', 'Streamlit', 'React', 'UI/UX Design', 'AI Agent'] },
+  { name: 'The Creator', tags: ['Video Production', 'Hip-Hop/Rap', 'Storyteller', 'Digital Media'] },
+  { name: 'The Hustler', tags: ['Looking for Co-founder', 'Marketing', 'Strategy'] },
+  { name: 'The Chill Zone', tags: ['Cricket Fanatic', 'Late Night Gamer', 'Anime'] },
+]
+
+function VibeCheckModal({ profile, onComplete }) {
+  const [selectedTags, setSelectedTags] = useState([])
+  const [search, setSearch] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  const toggleTag = (tag) => {
+    if (selectedTags.includes(tag)) setSelectedTags(prev => prev.filter(t => t !== tag))
+    else if (selectedTags.length < 7) setSelectedTags(prev => [...prev, tag])
+  }
+
+  const handleCreate = () => {
+    if (search.trim() && !selectedTags.includes(search.trim()) && selectedTags.length < 7) {
+      setSelectedTags(prev => [...prev, search.trim()])
+      setSearch('')
+    }
+  }
+
+  const handleSave = async () => {
+    setSaving(true)
+    await supabase.from('profiles').update({ skills: selectedTags }).eq('id', profile.id)
+    onComplete(selectedTags)
+  }
+
+  const allTags = VIBE_CATEGORIES.flatMap(c => c.tags)
+  const filteredTags = search.trim() ? allTags.filter(t => t.toLowerCase().includes(search.toLowerCase())) : []
+  const showCreate = search.trim() && !filteredTags.some(t => t.toLowerCase() === search.trim().toLowerCase())
+
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      className="absolute inset-0 z-50 flex flex-col bg-black overflow-hidden px-6 pt-16 pb-8">
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-violet-900/20 via-black to-black pointer-events-none" />
+      
+      <div className="relative z-10 flex-1 flex flex-col max-w-md mx-auto w-full">
+        <motion.h1 initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }}
+          className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-violet-400 mb-2">
+          What defines your vibe?
+        </motion.h1>
+        <p className="text-slate-400 mb-8">Select up to 7 tags to tune your serendipity engine.</p>
+        
+        {/* Tag Forge (Search) */}
+        <div className="relative mb-6 shrink-0">
+          <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
+            <Search className="w-5 h-5 text-cyan-400" />
+          </div>
+          <input
+            value={search} onChange={e => setSearch(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleCreate()}
+            placeholder="Search or create a tag..."
+            className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-12 pr-4 text-white placeholder-slate-500 focus:outline-none focus:border-cyan-400/50 backdrop-blur-xl"
+          />
+        </div>
+
+        <div className="flex-1 overflow-y-auto min-h-0 pb-4 space-y-8 no-scrollbar pr-2">
+          {search.trim() ? (
+            <div className="space-y-3">
+              <h3 className="text-sm font-bold text-slate-500 uppercase tracking-widest">Search Results</h3>
+              <div className="flex flex-wrap gap-3">
+                {filteredTags.map(tag => (
+                  <TagPill key={tag} tag={tag} selected={selectedTags.includes(tag)} onClick={() => toggleTag(tag)} />
+                ))}
+                {showCreate && (
+                  <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={handleCreate}
+                    className="px-5 py-2.5 rounded-full border border-cyan-400/50 bg-cyan-400/10 text-cyan-300 font-semibold text-sm flex items-center gap-2 backdrop-blur-md"
+                    style={{ boxShadow: '0 0 20px rgba(34,211,238,0.2)' }}>
+                    Create Tag: {search} <Plus size={16} />
+                  </motion.button>
+                )}
+              </div>
+            </div>
+          ) : (
+            VIBE_CATEGORIES.map(category => (
+              <div key={category.name} className="space-y-3">
+                <h3 className="text-sm font-bold text-slate-500 uppercase tracking-widest">{category.name}</h3>
+                <div className="flex flex-wrap gap-3">
+                  {category.tags.map(tag => (
+                    <TagPill key={tag} tag={tag} selected={selectedTags.includes(tag)} onClick={() => toggleTag(tag)} />
+                  ))}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="pt-4 flex items-center justify-between mt-auto shrink-0 border-t border-white/5">
+          <span className="text-sm font-medium text-slate-400">{selectedTags.length}/7 Selected</span>
+          <motion.button
+            whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
+            onClick={handleSave} disabled={selectedTags.length === 0 || saving}
+            className={`px-8 py-3 rounded-full font-bold text-white transition-all ${selectedTags.length > 0 ? 'bg-gradient-to-r from-violet-500 to-cyan-500 shadow-[0_0_30px_rgba(139,92,246,0.3)]' : 'bg-white/5 text-slate-500'}`}
+          >
+            {saving ? 'Tuning...' : 'Engage'}
+          </motion.button>
+        </div>
+      </div>
+    </motion.div>
+  )
+}
+
+function TagPill({ tag, selected, onClick }) {
+  return (
+    <motion.button
+      whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
+      onClick={onClick}
+      className={`px-5 py-2.5 rounded-full font-medium text-sm transition-all backdrop-blur-md border ${
+        selected
+          ? 'bg-white/10 border-cyan-400 text-cyan-300 shadow-[0_0_20px_rgba(34,211,238,0.2)]'
+          : 'bg-white/5 border-white/10 text-slate-300 hover:border-white/30'
+      }`}
+    >
+      {tag}
+    </motion.button>
+  )
+}
+
 // ── Galaxy View ──
 function GalaxyView({ onSelect, profile }) {
   const [hovered, setHovered] = useState(null)
+  const [search, setSearch] = useState('')
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [jumpingTo, setJumpingTo] = useState(null) // store node id
+  
+  const filteredNodes = CAMPUS_NODES.filter(n => {
+    if (!search.trim()) return true
+    return n.name.toLowerCase().includes(search.toLowerCase()) || n.short.toLowerCase().includes(search.toLowerCase())
+  })
+
+  const handleJump = (node) => {
+    setJumpingTo(node)
+    setTimeout(() => {
+      onSelect(node)
+    }, 800) // length of hyperspace jump
+  }
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter' && search.trim() && filteredNodes.length > 0) {
+      handleJump(filteredNodes[0])
+    }
+  }
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, scale: 0.9 }}
-      className="absolute inset-0 flex flex-col items-center justify-center overflow-hidden">
+      className="absolute inset-0 overflow-hidden bg-black flex flex-col items-center justify-center">
 
-      {/* Stars BG */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        {Array.from({ length: 60 }).map((_, i) => (
-          <motion.div key={i}
-            className="absolute rounded-full bg-white"
-            style={{
-              width: Math.random() * 2 + 1, height: Math.random() * 2 + 1,
-              left: `${Math.random() * 100}%`, top: `${Math.random() * 100}%`,
-            }}
-            animate={{ opacity: [0.2, 0.8, 0.2] }}
-            transition={{ duration: Math.random() * 3 + 2, repeat: Infinity, delay: Math.random() * 2 }}
-          />
-        ))}
-      </div>
+      {/* Camera Pan Wrapper */}
+      <motion.div
+        animate={jumpingTo ? {
+          x: `calc(50% - ${jumpingTo.x}%)`,
+          y: `calc(50% - ${jumpingTo.y}%)`,
+          scale: 4,
+          opacity: 0
+        } : { x: 0, y: 0, scale: 1, opacity: 1 }}
+        transition={{ duration: 0.8, ease: "easeInOut" }}
+        className="absolute w-full h-full left-0 top-0 origin-top-left"
+      >
+        {/* Stars BG */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          {Array.from({ length: 60 }).map((_, i) => (
+            <motion.div key={i}
+              className="absolute rounded-full bg-white"
+              style={{
+                width: Math.random() * 2 + 1, height: Math.random() * 2 + 1,
+                left: `${Math.random() * 100}%`, top: `${Math.random() * 100}%`,
+              }}
+              animate={{ opacity: [0.2, 0.8, 0.2] }}
+              transition={{ duration: Math.random() * 3 + 2, repeat: Infinity, delay: Math.random() * 2 }}
+            />
+          ))}
+        </div>
 
-      {/* Title */}
-      <motion.div initial={{ y: -30, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.2 }}
-        className="text-center mb-12 z-10">
-        <h1 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-violet-400 via-cyan-400 to-violet-400">
-          ONYX PULSE
-        </h1>
-        <p className="text-sm text-slate-500 mt-2 tracking-widest uppercase">Select Your Orbit</p>
+        {/* Orbital Lines */}
+        <svg className="absolute inset-0 w-full h-full pointer-events-none z-0" viewBox="0 0 100 100" preserveAspectRatio="none">
+          {CAMPUS_NODES.map((node, i) => (
+            <motion.circle key={i} cx={node.x} cy={node.y} r="12" fill="none" stroke={node.color} strokeWidth="0.15"
+              strokeDasharray="2 2" initial={{ opacity: 0 }} animate={{ opacity: search.trim() && !filteredNodes.includes(node) ? 0.05 : 0.3 }}
+              transition={{ delay: 0.3 + i * 0.15 }} />
+          ))}
+        </svg>
+
+        {/* Campus Nodes */}
+        {CAMPUS_NODES.map((node, i) => {
+          const isMatched = search.trim() && filteredNodes.includes(node)
+          const isFaded = search.trim() && !filteredNodes.includes(node)
+          const isActive = hovered === node.id || isMatched || jumpingTo?.id === node.id
+          const isMine = (profile?.tenant_id || null) === node.id
+          return (
+            <motion.button key={node.id ?? 'main'} onClick={() => handleJump(node)}
+              onHoverStart={() => setHovered(node.id)} onHoverEnd={() => setHovered(null)}
+              initial={{ scale: 0, opacity: 0 }}
+              animate={{ scale: 1, opacity: isFaded ? 0.2 : 1 }}
+              transition={{ delay: 0.4 + i * 0.15, type: 'spring', stiffness: 200, damping: 20 }}
+              className="absolute z-10 flex flex-col items-center gap-2 group"
+              style={{ left: `${node.x}%`, top: `${node.y}%`, transform: 'translate(-50%, -50%)' }}>
+
+              {/* Glow ring */}
+              <motion.div
+                animate={{
+                  boxShadow: isActive
+                    ? `0 0 40px ${node.color}80, 0 0 80px ${node.color}40`
+                    : `0 0 20px ${node.color}30, 0 0 40px ${node.color}15`,
+                  scale: jumpingTo?.id === node.id ? [1, 1.5, 1, 1.5, 1] : isActive ? 1.15 : 1,
+                }}
+                transition={{ duration: jumpingTo?.id === node.id ? 0.8 : 0.3 }}
+                className="w-16 h-16 rounded-full flex items-center justify-center relative"
+                style={{ background: `radial-gradient(circle at 35% 35%, ${node.color}40, ${node.color}15)`, border: `2px solid ${node.color}60` }}>
+
+                {/* Inner orb */}
+                <motion.div
+                  animate={{ scale: [1, 1.1, 1] }}
+                  transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut', delay: i * 0.5 }}
+                  className="w-8 h-8 rounded-full"
+                  style={{ background: `radial-gradient(circle at 30% 30%, ${node.color}, ${node.color}60)` }}
+                />
+
+                {/* My campus indicator */}
+                {isMine && (
+                  <motion.div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-cyan-400 border-2 border-black flex items-center justify-center"
+                    animate={{ scale: [1, 1.2, 1] }} transition={{ duration: 2, repeat: Infinity }}>
+                    <div className="w-1.5 h-1.5 rounded-full bg-white" />
+                  </motion.div>
+                )}
+              </motion.div>
+
+              {/* Label */}
+              <motion.span
+                animate={{ opacity: isActive ? 1 : 0.6 }}
+                className="text-xs font-bold tracking-wider whitespace-nowrap"
+                style={{ color: node.color }}>
+                {node.short}
+              </motion.span>
+              {isMine && <span className="text-[9px] text-cyan-400/60 -mt-1.5">YOUR CAMPUS</span>}
+            </motion.button>
+          )
+        })}
       </motion.div>
 
-      {/* Orbital Lines */}
-      <svg className="absolute inset-0 w-full h-full pointer-events-none z-0" viewBox="0 0 100 100" preserveAspectRatio="none">
-        {CAMPUS_NODES.map((node, i) => (
-          <motion.circle key={i} cx={node.x} cy={node.y} r="12" fill="none" stroke={node.color} strokeWidth="0.15"
-            strokeDasharray="2 2" initial={{ opacity: 0 }} animate={{ opacity: 0.3 }}
-            transition={{ delay: 0.3 + i * 0.15 }} />
-        ))}
-      </svg>
+      {/* Warp Search / Command Center UI */}
+      <div className="absolute top-12 left-1/2 -translate-x-1/2 z-30 flex flex-col items-center">
+        <motion.div initial={{ y: -30, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.2 }}
+          className={`text-center transition-all duration-500 pointer-events-none ${searchOpen ? 'opacity-0 scale-95 h-0 mb-0' : 'opacity-100 scale-100 h-auto mb-6'}`}>
+          <h1 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-violet-400 via-cyan-400 to-violet-400">
+            ONYX PULSE
+          </h1>
+          <p className="text-sm text-slate-500 mt-2 tracking-widest uppercase">Select Your Orbit</p>
+        </motion.div>
 
-      {/* Campus Nodes */}
-      {CAMPUS_NODES.map((node, i) => {
-        const isActive = hovered === node.id
-        const isMine = (profile?.tenant_id || null) === node.id
-        return (
-          <motion.button key={node.id ?? 'main'} onClick={() => onSelect(node)}
-            onHoverStart={() => setHovered(node.id)} onHoverEnd={() => setHovered(null)}
-            initial={{ scale: 0, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ delay: 0.4 + i * 0.15, type: 'spring', stiffness: 200, damping: 20 }}
-            className="absolute z-10 flex flex-col items-center gap-2 group"
-            style={{ left: `${node.x}%`, top: `${node.y}%`, transform: 'translate(-50%, -50%)' }}>
-
-            {/* Glow ring */}
-            <motion.div
-              animate={{
-                boxShadow: isActive
-                  ? `0 0 40px ${node.color}80, 0 0 80px ${node.color}40`
-                  : `0 0 20px ${node.color}30, 0 0 40px ${node.color}15`,
-                scale: isActive ? 1.15 : 1,
-              }}
-              transition={{ duration: 0.3 }}
-              className="w-16 h-16 rounded-full flex items-center justify-center relative"
-              style={{ background: `radial-gradient(circle at 35% 35%, ${node.color}40, ${node.color}15)`, border: `2px solid ${node.color}60` }}>
-
-              {/* Inner orb */}
-              <motion.div
-                animate={{ scale: [1, 1.1, 1] }}
-                transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut', delay: i * 0.5 }}
-                className="w-8 h-8 rounded-full"
-                style={{ background: `radial-gradient(circle at 30% 30%, ${node.color}, ${node.color}60)` }}
+        <motion.div layout className="relative">
+          <motion.div 
+            layout
+            className={`flex items-center backdrop-blur-xl border border-white/10 overflow-hidden transition-all duration-300 ${
+              searchOpen ? 'w-80 bg-white/10 rounded-2xl px-4 py-3 shadow-[0_0_40px_rgba(34,211,238,0.15)]' : 'w-14 h-14 bg-white/5 rounded-full cursor-pointer hover:bg-white/10 justify-center shadow-[0_0_20px_rgba(255,255,255,0.05)]'
+            }`}
+            onClick={() => !searchOpen && setSearchOpen(true)}
+          >
+            <Search className={`w-5 h-5 text-cyan-400 shrink-0 ${searchOpen ? 'mr-3' : ''}`} />
+            {searchOpen && (
+              <input
+                autoFocus
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                onKeyDown={handleKeyDown}
+                onBlur={() => !search && setSearchOpen(false)}
+                placeholder="Enter Campus Code (e.g., MNIT)..."
+                className="bg-transparent border-none outline-none text-white text-sm w-full placeholder:text-slate-500"
               />
+            )}
+          </motion.div>
+        </motion.div>
+      </div>
 
-              {/* My campus indicator */}
-              {isMine && (
-                <motion.div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-cyan-400 border-2 border-black flex items-center justify-center"
-                  animate={{ scale: [1, 1.2, 1] }} transition={{ duration: 2, repeat: Infinity }}>
-                  <div className="w-1.5 h-1.5 rounded-full bg-white" />
-                </motion.div>
-              )}
-            </motion.div>
-
-            {/* Label */}
-            <motion.span
-              animate={{ opacity: isActive ? 1 : 0.6 }}
-              className="text-xs font-bold tracking-wider whitespace-nowrap"
-              style={{ color: node.color }}>
-              {node.short}
-            </motion.span>
-            {isMine && <span className="text-[9px] text-cyan-400/60 -mt-1.5">YOUR CAMPUS</span>}
-          </motion.button>
-        )
-      })}
     </motion.div>
   )
 }
@@ -404,6 +588,7 @@ export default function OnyxPulse({ profile, onTabChange }) {
   const [loading, setLoading] = useState(false)
   const [sparkTarget, setSparkTarget] = useState(null)
   const [seenCount, setSeenCount] = useState(0)
+  const [vibeCheckComplete, setVibeCheckComplete] = useState((profile?.skills?.length || 0) > 0)
   const myTags = [profile?.branch, ...(profile?.skills || [])].filter(Boolean)
 
   const loadStack = useCallback(async (campus) => {
@@ -554,7 +739,18 @@ export default function OnyxPulse({ profile, onTabChange }) {
       {/* Main Content */}
       <div className="relative flex-1 z-10">
         <AnimatePresence mode="wait">
-          {phase === 'galaxy' && (
+          {!vibeCheckComplete && (
+            <VibeCheckModal 
+              key="vibe" 
+              profile={profile} 
+              onComplete={(tags) => {
+                if (profile) profile.skills = tags
+                setVibeCheckComplete(true)
+              }} 
+            />
+          )}
+
+          {vibeCheckComplete && phase === 'galaxy' && (
             <GalaxyView key="galaxy" onSelect={handleSelectCampus} profile={profile} />
           )}
 
