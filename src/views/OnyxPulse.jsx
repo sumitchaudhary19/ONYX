@@ -89,7 +89,7 @@ function VibeCheckModal({ profile, onComplete }) {
       className="absolute inset-0 z-50 flex flex-col bg-black overflow-hidden px-6 pt-16 pb-8">
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-violet-900/20 via-black to-black pointer-events-none" />
       
-      <div className="relative z-10 flex-1 flex flex-col max-w-md mx-auto w-full">
+      <div className="relative z-10 flex-1 flex flex-col max-w-md mx-auto w-full min-h-0">
         <motion.h1 initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }}
           className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-violet-400 mb-2">
           What defines your vibe?
