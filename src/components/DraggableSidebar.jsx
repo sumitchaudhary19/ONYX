@@ -55,6 +55,7 @@ export default function DraggableSidebar({ onNavigate, onPost, onSnap, onStory, 
       case 'myhub':
       case 'radar':
       case 'forge':
+      case 'pulse':
         onNavigate?.(item.id); break
       default: break
     }
