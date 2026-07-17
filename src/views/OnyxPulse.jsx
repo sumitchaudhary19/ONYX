@@ -76,7 +76,9 @@ function VibeCheckModal({ profile, onComplete }) {
 
   const handleSave = async () => {
     setSaving(true)
-    await supabase.from('profiles').update({ skills: selectedTags }).eq('id', profile.id)
+    const { error } = await supabase.from('profiles').update({ skills: selectedTags }).eq('id', profile.id)
+    if (error) console.error('[VibeCheck] Save error:', error)
+    localStorage.setItem(`pulse_vibe_checked_${profile.id}`, 'true')
     onComplete(selectedTags)
   }
 
@@ -588,7 +590,9 @@ export default function OnyxPulse({ profile, onTabChange }) {
   const [loading, setLoading] = useState(false)
   const [sparkTarget, setSparkTarget] = useState(null)
   const [seenCount, setSeenCount] = useState(0)
-  const [vibeCheckComplete, setVibeCheckComplete] = useState((profile?.skills?.length || 0) > 0)
+  const [vibeCheckComplete, setVibeCheckComplete] = useState(
+    (profile?.skills?.length || 0) > 0 || localStorage.getItem(`pulse_vibe_checked_${profile?.id}`) === 'true'
+  )
   const myTags = [profile?.branch, ...(profile?.skills || [])].filter(Boolean)
 
   const loadStack = useCallback(async (campus) => {
