@@ -454,28 +454,26 @@ function StepAuthSelection({ onGoogle, onGuest, loading, tenant, setTenant, onTe
   // Guest Auth State
   const [showGuestForm, setShowGuestForm] = useState(false)
   const [guestMode, setGuestMode] = useState('create') // 'create' | 'login'
-  const [guestUsername, setGuestUsername] = useState('')
+  const [guestEmail, setGuestEmail] = useState('')
   const [guestPassword, setGuestPassword] = useState('')
   const [guestLoading, setGuestLoading] = useState(false)
   const [guestError, setGuestError] = useState('')
 
   const handleGuestLogin = async () => {
-    const uname = guestUsername.trim().toLowerCase().replace(/[^a-z0-9_]/g, '')
-    if (uname.length < 3) { setGuestError('Username must be at least 3 characters'); return }
+    const email = guestEmail.trim().toLowerCase()
+    if (!email.includes('@')) { setGuestError('Please enter a valid email address'); return }
     if (guestPassword.length < 6) { setGuestError('Password must be at least 6 characters'); return }
     setGuestLoading(true)
     setGuestError('')
 
-    const syntheticEmail = `${uname}@guest.onyx.local`
-
     try {
       const { error: loginError } = await supabase.auth.signInWithPassword({
-        email: syntheticEmail,
+        email: email,
         password: guestPassword,
       })
       if (loginError) {
         if (loginError.message?.includes('Invalid login')) {
-          setGuestError('Invalid username or password')
+          setGuestError('Invalid email or password')
         } else {
           setGuestError(loginError.message)
         }
@@ -616,81 +614,76 @@ function StepAuthSelection({ onGoogle, onGuest, loading, tenant, setTenant, onTe
           )}
         </div>
       ) : (
-        /* ── Standard Auth Buttons (MNIT production) ── */
+        /* ── Standard Auth Form ── */
         <div className="w-full max-w-xs flex flex-col gap-4">
-          {!showGuestForm ? (
-            <>
-              <motion.div animate={{ boxShadow: ['0 0 15px rgba(59,130,246,0.2)', '0 0 30px rgba(59,130,246,0.4)', '0 0 15px rgba(59,130,246,0.2)'] }}
-                transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
-                className="rounded-full">
-                <SecondaryButton onClick={onGoogle} disabled={loading}
-                  className="!border-blue-500/30 !bg-blue-500/[0.07] hover:!bg-blue-500/[0.12]">
-                  <GoogleIcon /> Create account with Google
-                </SecondaryButton>
-              </motion.div>
-              <SecondaryButton onClick={() => setShowGuestForm(true)} disabled={loading}>
-                <User size={18} /> Guest account
-              </SecondaryButton>
-            </>
-          ) : (
-            <div className="w-full max-w-xs flex flex-col gap-3">
-              <button onClick={() => setShowGuestForm(false)} className="self-start text-xs text-slate-400 hover:text-white flex items-center gap-1 mb-1">
-                <ChevronLeft size={14} /> Back
-              </button>
-              <div className="flex gap-1 p-1 rounded-xl bg-white/[0.04] border border-white/[0.06]">
-                {['create', 'login'].map(m => (
-                  <button key={m} onClick={() => { setGuestMode(m); setGuestError('') }}
-                    className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-all
-                      ${guestMode === m
-                        ? 'bg-blue-500/20 text-blue-300 shadow-sm'
-                        : 'text-slate-500 hover:text-slate-400'
-                      }`}>
-                    {m === 'create' ? 'Create Guest' : 'Guest Login'}
-                  </button>
-                ))}
-              </div>
+          <motion.div animate={{ boxShadow: ['0 0 15px rgba(59,130,246,0.2)', '0 0 30px rgba(59,130,246,0.4)', '0 0 15px rgba(59,130,246,0.2)'] }}
+            transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
+            className="rounded-full">
+            <PrimaryButton onClick={onGoogle} disabled={loading} glow="blue" className="!py-3.5">
+              <GoogleIcon /> Sign in with MNIT ID (Google)
+            </PrimaryButton>
+          </motion.div>
 
-              {guestMode === 'create' ? (
+          <div className="flex items-center gap-3 my-1 opacity-60">
+            <div className="flex-1 h-px bg-slate-500" />
+            <span className="text-[10px] font-mono text-slate-400 uppercase tracking-widest">or standard login</span>
+            <div className="flex-1 h-px bg-slate-500" />
+          </div>
+
+          <div className="w-full flex flex-col gap-3">
+            <div className="flex gap-1 p-1 rounded-xl bg-white/[0.04] border border-white/[0.06]">
+              {['create', 'login'].map(m => (
+                <button key={m} onClick={() => { setGuestMode(m); setGuestError('') }}
+                  className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-all
+                    ${guestMode === m
+                      ? 'bg-blue-500/20 text-blue-300 shadow-sm'
+                      : 'text-slate-500 hover:text-slate-400'
+                    }`}>
+                  {m === 'create' ? 'Guest Sign Up' : 'Guest Login'}
+                </button>
+              ))}
+            </div>
+
+            {guestMode === 'create' ? (
+              <motion.div animate={{ boxShadow: ['0 0 12px rgba(59,130,246,0.2)', '0 0 24px rgba(59,130,246,0.4)', '0 0 12px rgba(59,130,246,0.2)'] }}
+                transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+                className="rounded-full mt-4">
+                <PrimaryButton onClick={onGuest}>
+                  <ChevronRight size={16} /> Continue as Guest
+                </PrimaryButton>
+              </motion.div>
+            ) : (
+              <>
+                <div className="capsule-field">
+                  <Mail size={16} className="text-slate-500 flex-shrink-0" />
+                  <input type="email" placeholder="Email Address" value={guestEmail}
+                    onChange={e => setGuestEmail(e.target.value.trim().toLowerCase())}
+                    className="bg-transparent flex-1 outline-none text-white text-sm placeholder:text-slate-600" />
+                </div>
+                <div className="capsule-field">
+                  <Lock size={16} className="text-slate-500 flex-shrink-0" />
+                  <input type="password" placeholder="Password (min 6 chars)" value={guestPassword}
+                    onChange={e => setGuestPassword(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && handleGuestLogin()}
+                    className="bg-transparent flex-1 outline-none text-white text-sm placeholder:text-slate-600" />
+                </div>
+                {guestError && (
+                  <motion.p initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }}
+                    className="text-xs text-red-400 text-center px-2">{guestError}</motion.p>
+                )}
                 <motion.div animate={{ boxShadow: ['0 0 12px rgba(59,130,246,0.2)', '0 0 24px rgba(59,130,246,0.4)', '0 0 12px rgba(59,130,246,0.2)'] }}
                   transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
-                  className="rounded-full mt-4">
-                  <PrimaryButton onClick={onGuest}>
-                    <ChevronRight size={16} /> Begin Setup
+                  className="rounded-full mt-1">
+                  <PrimaryButton onClick={handleGuestLogin} disabled={guestLoading}>
+                    {guestLoading
+                      ? <><Loader2 size={16} className="animate-spin" /> Processing...</>
+                      : <><ChevronRight size={16} /> Login as Guest</>
+                    }
                   </PrimaryButton>
                 </motion.div>
-              ) : (
-                <>
-                  <div className="capsule-field">
-                    <User size={16} className="text-slate-500 flex-shrink-0" />
-                    <input type="text" placeholder="Username" value={guestUsername}
-                      onChange={e => setGuestUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
-                      className="bg-transparent flex-1 outline-none text-white text-sm placeholder:text-slate-600" />
-                  </div>
-                  <div className="capsule-field">
-                    <Lock size={16} className="text-slate-500 flex-shrink-0" />
-                    <input type="password" placeholder="Password (min 6 chars)" value={guestPassword}
-                      onChange={e => setGuestPassword(e.target.value)}
-                      onKeyDown={e => e.key === 'Enter' && handleGuestLogin()}
-                      className="bg-transparent flex-1 outline-none text-white text-sm placeholder:text-slate-600" />
-                  </div>
-                  {guestError && (
-                    <motion.p initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }}
-                      className="text-xs text-red-400 text-center px-2">{guestError}</motion.p>
-                  )}
-                  <motion.div animate={{ boxShadow: ['0 0 12px rgba(59,130,246,0.2)', '0 0 24px rgba(59,130,246,0.4)', '0 0 12px rgba(59,130,246,0.2)'] }}
-                    transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
-                    className="rounded-full mt-1">
-                    <PrimaryButton onClick={handleGuestLogin} disabled={guestLoading}>
-                      {guestLoading
-                        ? <><Loader2 size={16} className="animate-spin" /> Processing...</>
-                        : <><ChevronRight size={16} /> Login as Guest</>
-                      }
-                    </PrimaryButton>
-                  </motion.div>
-                </>
-              )}
-            </div>
-          )}
+              </>
+            )}
+          </div>
         </div>
       )}
 
@@ -756,7 +749,8 @@ function StepName({ formData, setFormData, onNext }) {
 function StepCredentials({ formData, setFormData, authMode, usernameStatus, onNext }) {
   const validUsername = formData.username.length >= 3 && usernameStatus === 'available'
   const validPassword = authMode === 'google' || formData.password.length >= 6
-  const valid = validUsername && validPassword
+  const validEmail = authMode !== 'guest' || formData.email.includes('@')
+  const valid = validUsername && validPassword && validEmail
 
   const statusIcon = {
     checking: <Loader2 size={16} className="text-blue-400 animate-spin" />,
@@ -768,6 +762,10 @@ function StepCredentials({ formData, setFormData, authMode, usernameStatus, onNe
     <div className="flex flex-col items-center h-full py-12 px-6">
       <OnyxLogo size="sm" />
       <div className="w-full max-w-xs mt-auto flex flex-col gap-4 mb-2">
+        {authMode === 'guest' && (
+          <CapsuleInput icon={Mail} type="email" placeholder="Email Address" value={formData.email}
+            onChange={e => setFormData(p => ({ ...p, email: e.target.value.toLowerCase().trim() }))} />
+        )}
         <div>
           <CapsuleInput icon={User} placeholder="Choose Username" value={formData.username}
             onChange={e => setFormData(p => ({ ...p, username: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '') }))}
@@ -1017,7 +1015,7 @@ export default function OnboardingWizard({ onComplete, session }) {
   const debounceRef = useRef(null)
 
   const [formData, setFormData] = useState({
-    firstName: '', lastName: '', username: '', password: '',
+    firstName: '', lastName: '', username: '', password: '', email: '',
     dob: '', btechYear: '', branch: '', section: '', bio: '',
     avatarFile: null, isPulseActive: true
   })
@@ -1121,7 +1119,7 @@ export default function OnboardingWizard({ onComplete, session }) {
         const safeUsername = formData.username.replace(/[^a-z0-9_]/g, '')
         const email = authMode === 'tenant'
           ? `${safeUsername}@${tenant.replace(/_/g, '')}.onyxapp.com`
-          : `${safeUsername}@guest.onyx.local`
+          : formData.email
         const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
           email,
           password: formData.password,
@@ -1159,7 +1157,14 @@ export default function OnboardingWizard({ onComplete, session }) {
         section: formData.section || null,
         is_pulse_active: formData.isPulseActive,
         ...(avatarUrl ? { avatar_url: avatarUrl } : {}),
-        ...(tenant ? { tenant_id: tenant } : {}),
+      }
+
+      if (authMode === 'tenant') {
+        profileData.tenant_id = tenant
+      }
+
+      if (authMode === 'guest') {
+        profileData.is_guest = true
       }
 
       const { error: profileError } = await supabase.from('profiles').upsert(profileData)
