@@ -25,6 +25,7 @@ import MyHub from '../views/MyHub'
 import CampusRadar from '../views/CampusRadar'
 import SkillForge from '../views/SkillForge'
 import OnyxPulse from '../views/OnyxPulse'
+import ComingSoonToast from './ComingSoonToast'
 import { supabase } from '../supabaseClient'
 
 /* ── Per-view Error Boundary ── */
@@ -118,6 +119,7 @@ export default function MainLayout({ profile, session }) {
   const [activeTab,    setActiveTab   ] = useState('home')
   const [pendingCount, setPendingCount] = useState(0)
   const [unreadChatCount, setUnreadChatCount] = useState(0)
+  const [comingSoonMessage, setComingSoonMessage] = useState(null)
   const [showSnap,     setShowSnap    ] = useState(false)
   const [showPost,     setShowPost    ] = useState(false)
   const [showGroup,    setShowGroup   ] = useState(false)
@@ -205,6 +207,10 @@ export default function MainLayout({ profile, session }) {
   }
 
   const handleTabChange = (id) => {
+    if (id === 'pulse') {
+      setComingSoonMessage('The Pulse Serendipity Engine is arriving soon.')
+      return
+    }
     if (id === 'snap') { setShowSnap(true); return }
     setActiveTab(id)
     if (id === 'notifications') setPendingCount(0)
@@ -245,6 +251,16 @@ export default function MainLayout({ profile, session }) {
               </div>
             </div>
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ═══ COMING SOON TOAST ═══ */}
+      <AnimatePresence>
+        {comingSoonMessage && (
+          <ComingSoonToast 
+            message={comingSoonMessage} 
+            onClose={() => setComingSoonMessage(null)} 
+          />
         )}
       </AnimatePresence>
       

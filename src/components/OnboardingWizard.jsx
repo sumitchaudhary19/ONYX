@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { User, Lock, ChevronRight, ChevronLeft, Calendar, Camera, X, Check, XCircle, Loader2 } from 'lucide-react'
 import { supabase } from '../supabaseClient'
+import ComingSoonToast from './ComingSoonToast'
 
 // ── Constants ──────────────────────────────────────────────────────────────
 const TENANTS = { C1: 'college_1', C2: 'college_2' }
@@ -352,6 +353,7 @@ function StepAuthSelection({ onGoogle, onGuest, loading, tenant, setTenant, onTe
   const [tenantPassword, setTenantPassword] = useState('')
   const [tenantLoading, setTenantLoading] = useState(false)
   const [tenantError, setTenantError] = useState('')
+  const [comingSoonMessage, setComingSoonMessage] = useState(null)
 
   const handleTenantLogin = async () => {
     const uname = tenantUsername.trim().toLowerCase().replace(/[^a-z0-9_]/g, '')
@@ -388,11 +390,20 @@ function StepAuthSelection({ onGoogle, onGuest, loading, tenant, setTenant, onTe
   return (
     <div className="flex flex-col items-center justify-between h-full py-16 px-6 relative">
       {/* Decoy X button - looks like a broken UI artifact */}
-      <button onClick={() => setShowTenantPicker(true)}
+      <button onClick={() => setComingSoonMessage('Multi-Campus access is arriving soon.')}
         style={{ position: 'absolute', top: 14, right: 14, width: 22, height: 22, opacity: 0.22,
           background: 'none', border: 'none', color: '#94a3b8', fontSize: 10, cursor: 'default',
           fontFamily: 'monospace', letterSpacing: '-1px', lineHeight: 1, zIndex: 10 }}
         aria-hidden="true">X</button>
+
+      <AnimatePresence>
+        {comingSoonMessage && (
+          <ComingSoonToast 
+            message={comingSoonMessage} 
+            onClose={() => setComingSoonMessage(null)} 
+          />
+        )}
+      </AnimatePresence>
 
       {/* Tenant badge (only visible when tenant selected) */}
       {tenant && (
