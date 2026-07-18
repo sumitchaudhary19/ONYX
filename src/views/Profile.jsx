@@ -352,268 +352,429 @@ function AboutModal({onClose}){
   )
 }
 
-export default function Profile({profile:initialProfile, onTabChange}){
-  const[profile,setProfile]=useState(initialProfile)
-  const[authMeta,setAuthMeta]=useState(null)
-  const[friendCount,setFriendCount]=useState(null)
-  const[signing,setSigning]=useState(false)
-  const[isEditing,setIsEditing]=useState(false)
-  const[saving,setSaving]=useState(false)
-  const[showAvatarModal,setShowAvatarModal]=useState(false)
-  const[saveError,setSaveError]=useState(null)
-  const[menuOpen,setMenuOpen]=useState(false)
-  const[showBlocked,setShowBlocked]=useState(false)
-  const[showAbout,setShowAbout]=useState(false)
-  const[showFriends,setShowFriends]=useState(false)
-  const menuRef=useRef(null)
+export default function Profile({ profile: initialProfile, onTabChange }) {
+  const [profile, setProfile] = useState(initialProfile)
+  const [authMeta, setAuthMeta] = useState(null)
+  const [friendCount, setFriendCount] = useState(null)
+  const [posts, setPosts] = useState([])
+  const [postsLoading, setPostsLoading] = useState(true)
+  const [signing, setSigning] = useState(false)
+  const [isEditing, setIsEditing] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [showAvatarModal, setShowAvatarModal] = useState(false)
+  const [saveError, setSaveError] = useState(null)
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [showBlocked, setShowBlocked] = useState(false)
+  const [showAbout, setShowAbout] = useState(false)
+  const [showFriends, setShowFriends] = useState(false)
+  const [expandedPost, setExpandedPost] = useState(null)
+  const menuRef = useRef(null)
 
-  const[form,setForm]=useState({
-    firstName:initialProfile?.firstName||'',
-    lastName:initialProfile?.lastName||'',
-    username:initialProfile?.username||'',
-    bio:initialProfile?.bio||'',
+  const [form, setForm] = useState({
+    firstName: initialProfile?.firstName || '',
+    lastName: initialProfile?.lastName || '',
+    username: initialProfile?.username || '',
+    bio: initialProfile?.bio || '',
+    upiId: initialProfile?.upi_id || '',
   })
 
-  useEffect(()=>{
-    function handler(e){ if(menuRef.current&&!menuRef.current.contains(e.target))setMenuOpen(false) }
-    document.addEventListener('mousedown',handler)
-    return()=>document.removeEventListener('mousedown',handler)
-  },[])
+  useEffect(() => {
+    function handler(e) { if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpen(false) }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
 
-  useEffect(()=>{
-    async function fetchMeta(){
-      try{
-        const{data:{user}}=await supabase.auth.getUser()
-        if(user)setAuthMeta(user)
-        if(initialProfile?.id){
-          const{count}=await supabase.from('friend_requests').select('id',{count:'exact',head:true}).eq('status','accepted').or(`sender_id.eq.${initialProfile.id},receiver_id.eq.${initialProfile.id}`)
-          setFriendCount(count??0)
+  useEffect(() => {
+    async function fetchMeta() {
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (user) setAuthMeta(user)
+        if (initialProfile?.id) {
+          const { count } = await supabase
+            .from('friend_requests').select('id', { count: 'exact', head: true })
+            .eq('status', 'accepted')
+            .or(`sender_id.eq.${initialProfile.id},receiver_id.eq.${initialProfile.id}`)
+          setFriendCount(count ?? 0)
         }
-      }catch(err){console.error('[Profile] fetchMeta:',err)}
+      } catch (err) { console.error('[Profile] fetchMeta:', err) }
     }
     fetchMeta()
-  },[initialProfile?.id])
+  }, [initialProfile?.id])
 
-  const initials=[profile?.firstName,profile?.lastName].filter(Boolean).map(s=>s[0]?.toUpperCase()).join('')||'MN'
-  const memberSince=authMeta?.created_at?new Date(authMeta.created_at).toLocaleDateString('en-IN',{year:'numeric',month:'long',day:'numeric'}):'—'
-  const lastSeen=authMeta?.last_sign_in_at?new Date(authMeta.last_sign_in_at).toLocaleDateString('en-IN',{year:'numeric',month:'short',day:'numeric'}):'—'
+  // Fetch own posts for the grid
+  useEffect(() => {
+    async function fetchPosts() {
+      if (!initialProfile?.id) return
+      setPostsLoading(true)
+      try {
+        const { data: rawPosts } = await supabase
+          .from('posts')
+          .select('*,profiles:user_id(id,first_name,last_name,avatar_url)')
+          .eq('user_id', initialProfile.id)
+          .order('created_at', { ascending: false })
+        setPosts(rawPosts || [])
+      } catch (err) { console.error('[Profile] fetchPosts:', err) }
+      finally { setPostsLoading(false) }
+    }
+    fetchPosts()
+  }, [initialProfile?.id])
 
-  const handleSave=async()=>{
-    if(!form.firstName.trim()){setSaveError('First name required.');return}
-    if(form.username.trim().length<3){setSaveError('Username must be ≥ 3 chars.');return}
-    setSaving(true);setSaveError(null)
-    try{
-      const{data:{user}}=await supabase.auth.getUser()
-      const{error}=await supabase.from('profiles').upsert({id:user.id,first_name:form.firstName.trim(),last_name:form.lastName.trim(),username:form.username.trim().toLowerCase(),bio:form.bio.trim(),upi_id:form.upiId?.trim()||null})
-      if(error)throw error
-      setProfile(p=>({...p,...form,username:form.username.trim().toLowerCase()}))
+  const initials = [profile?.firstName, profile?.lastName].filter(Boolean).map(s => s[0]?.toUpperCase()).join('') || 'MN'
+  const memberSince = authMeta?.created_at ? new Date(authMeta.created_at).toLocaleDateString('en-IN', { year: 'numeric', month: 'long', day: 'numeric' }) : '—'
+  const lastSeen = authMeta?.last_sign_in_at ? new Date(authMeta.last_sign_in_at).toLocaleDateString('en-IN', { year: 'numeric', month: 'short', day: 'numeric' }) : '—'
+
+  const handleSave = async () => {
+    if (!form.firstName.trim()) { setSaveError('First name required.'); return }
+    if (form.username.trim().length < 3) { setSaveError('Username must be ≥ 3 chars.'); return }
+    setSaving(true); setSaveError(null)
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      const { error } = await supabase.from('profiles').upsert({
+        id: user.id,
+        first_name: form.firstName.trim(),
+        last_name: form.lastName.trim(),
+        username: form.username.trim().toLowerCase(),
+        bio: form.bio.trim(),
+        upi_id: form.upiId?.trim() || null,
+      })
+      if (error) throw error
+      setProfile(p => ({ ...p, ...form, username: form.username.trim().toLowerCase() }))
       setIsEditing(false)
-    }catch(err){setSaveError(err.message)}
-    finally{setSaving(false)}
+    } catch (err) { setSaveError(err.message) }
+    finally { setSaving(false) }
   }
 
-  const startEdit=()=>{
-    setForm({firstName:profile?.firstName||'',lastName:profile?.lastName||'',username:profile?.username||'',bio:profile?.bio||'',upiId:initialProfile?.upi_id||''})
-    setSaveError(null);setIsEditing(true)
+  const startEdit = () => {
+    setForm({ firstName: profile?.firstName || '', lastName: profile?.lastName || '', username: profile?.username || '', bio: profile?.bio || '', upiId: initialProfile?.upi_id || '' })
+    setSaveError(null); setIsEditing(true)
   }
 
-  const IS={padding:'8px 12px',borderRadius:'10px',border:'1px solid rgba(255,255,255,0.12)',background:'rgba(255,255,255,0.06)',color:'#f0f4ff',fontSize:'13px',outline:'none',width:'100%',boxSizing:'border-box'}
+  const IS = { padding: '8px 12px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.06)', color: '#f0f4ff', fontSize: '13px', outline: 'none', width: '100%', boxSizing: 'border-box' }
 
-  const menuItems=[
-    {icon:Ban,label:'Blocked Users',color:'#f87171',action:()=>{setMenuOpen(false);setShowBlocked(true)}},
-    {icon:Info,label:'About This App',color:'#60a5fa',action:()=>{setMenuOpen(false);setShowAbout(true)}},
+  // Kebab menu items — all metadata + sign-out moved here
+  const menuSections = [
+    {
+      label: 'Account',
+      items: [
+        { icon: GraduationCap, label: 'Institute', value: 'MNIT Jaipur', color: '#a78bfa' },
+        { icon: Clock, label: 'Member Since', value: memberSince, color: '#60a5fa' },
+        { icon: Activity, label: 'Last Active', value: lastSeen, color: '#34d399' },
+        { icon: Mail, label: 'Auth', value: authMeta?.app_metadata?.provider === 'google' ? 'Google OAuth' : 'Email', color: '#fbbf24' },
+        { icon: Shield, label: 'Email', value: authMeta?.email ?? '—', color: '#f59e0b' },
+      ]
+    }
   ]
 
-  return(
-    <div style={{height:'100%',overflowY:'auto',background:'#060b18'}}>
-      {/* Cover */}
-      <div style={{position:'relative',height:'160px',background:'linear-gradient(135deg,#0d1a3a 0%,#162554 40%,#1e3a8a 100%)',overflow:'hidden'}}>
-        <div style={{position:'absolute',width:'300px',height:'300px',borderRadius:'50%',background:'radial-gradient(circle,rgba(37,99,235,0.25),transparent 70%)',top:'-80px',right:'-60px'}}/>
-        <div style={{position:'absolute',width:'200px',height:'200px',borderRadius:'50%',background:'radial-gradient(circle,rgba(124,58,237,0.2),transparent 70%)',bottom:'-60px',left:'20px'}}/>
-        <div style={{position:'absolute',inset:0,backgroundImage:'linear-gradient(rgba(255,255,255,0.03) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.03) 1px,transparent 1px)',backgroundSize:'32px 32px'}}/>
-        {/* Hamburger menu top-right */}
-        <div ref={menuRef} style={{position:'absolute',top:'14px',right:'14px',zIndex:10}}>
-          <motion.button whileTap={{scale:0.88}} onClick={()=>setMenuOpen(v=>!v)}
-            style={{width:36,height:36,borderRadius:'11px',background:'rgba(0,0,0,0.4)',border:'1px solid rgba(255,255,255,0.15)',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color:'#f0f4ff',backdropFilter:'blur(8px)'}}>
-            <MoreVertical style={{width:16,height:16}}/>
+  return (
+    <div style={{ height: '100%', overflowY: 'auto', background: '#060b18', position: 'relative' }}>
+
+      {/* ── Expanded Post Modal ── */}
+      <AnimatePresence>
+        {expandedPost && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            onClick={() => setExpandedPost(null)}
+            className="fixed inset-0 z-[500] bg-black/90 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto pt-10 pb-10">
+            <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }}
+              onClick={e => e.stopPropagation()}
+              className="w-full max-w-lg mx-auto relative">
+              <button onClick={() => setExpandedPost(null)}
+                className="absolute -top-12 right-0 p-2 rounded-full bg-white/10 hover:bg-white/20 text-white z-10 transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+              {/* Simple post preview */}
+              <div className="bg-[#0d1630] border border-white/10 rounded-2xl overflow-hidden p-4">
+                {expandedPost.media_url ? (
+                  expandedPost.media_type === 'video'
+                    ? <video src={expandedPost.media_url} controls className="w-full rounded-xl max-h-80 object-contain" />
+                    : <img src={expandedPost.media_url} alt="" className="w-full rounded-xl max-h-80 object-contain" />
+                ) : null}
+                {expandedPost.content && (
+                  <p className="text-slate-200 text-sm mt-3 leading-relaxed whitespace-pre-wrap">{expandedPost.content}</p>
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Cover Strip ── */}
+      <div style={{
+        position: 'relative', height: '140px',
+        background: 'linear-gradient(135deg,#0d1a3a 0%,#162554 40%,#1e3a8a 100%)',
+        overflow: 'hidden'
+      }}>
+        <div style={{ position: 'absolute', width: '300px', height: '300px', borderRadius: '50%', background: 'radial-gradient(circle,rgba(37,99,235,0.25),transparent 70%)', top: '-80px', right: '-60px' }} />
+        <div style={{ position: 'absolute', width: '200px', height: '200px', borderRadius: '50%', background: 'radial-gradient(circle,rgba(124,58,237,0.2),transparent 70%)', bottom: '-60px', left: '20px' }} />
+        <div style={{ position: 'absolute', inset: 0, backgroundImage: 'linear-gradient(rgba(255,255,255,0.03) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.03) 1px,transparent 1px)', backgroundSize: '32px 32px' }} />
+
+        {/* ── Kebab Menu (top-right) ── */}
+        <div ref={menuRef} style={{ position: 'absolute', top: '14px', right: '14px', zIndex: 10 }}>
+          <motion.button whileTap={{ scale: 0.88 }} onClick={() => setMenuOpen(v => !v)}
+            style={{ width: 36, height: 36, borderRadius: '11px', background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#f0f4ff', backdropFilter: 'blur(8px)' }}>
+            <MoreVertical style={{ width: 16, height: 16 }} />
           </motion.button>
           <AnimatePresence>
-            {menuOpen&&(
+            {menuOpen && (
               <motion.div
-                initial={{opacity:0,scale:0.88,y:-8}} animate={{opacity:1,scale:1,y:0}} exit={{opacity:0,scale:0.88,y:-8}}
-                transition={{duration:0.18,ease:[0.16,1,0.3,1]}}
-                style={{position:'absolute',top:'44px',right:0,width:'210px',background:'linear-gradient(180deg,#0d1630,#080e22)',border:'1px solid rgba(255,255,255,0.12)',borderRadius:'16px',overflow:'hidden',zIndex:200,boxShadow:'0 16px 48px rgba(0,0,0,0.7)'}}>
-                {menuItems.map(({icon:Icon,label,color,action})=>(
-                  <motion.button key={label} onClick={action} whileHover={{background:'rgba(255,255,255,0.06)'}}
-                    style={{width:'100%',display:'flex',alignItems:'center',justifyContent:'space-between',padding:'13px 16px',background:'transparent',border:'none',cursor:'pointer'}}>
-                    <div style={{display:'flex',alignItems:'center',gap:'12px'}}>
-                      <Icon style={{width:15,height:15,color,flexShrink:0}}/>
-                      <span style={{fontSize:'14px',fontWeight:500,color:'#e2e8f0'}}>{label}</span>
+                initial={{ opacity: 0, scale: 0.88, y: -8 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.88, y: -8 }}
+                transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+                style={{ position: 'absolute', top: '44px', right: 0, width: '260px', background: 'linear-gradient(180deg,#0d1630,#080e22)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '20px', overflow: 'hidden', zIndex: 200, boxShadow: '0 16px 48px rgba(0,0,0,0.7)' }}>
+
+                {/* Metadata section */}
+                <div style={{ padding: '10px 14px 6px' }}>
+                  <p style={{ fontSize: '9px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '4px' }}>Account Info</p>
+                  {menuSections[0].items.map(({ icon: Icon, label, value, color }) => (
+                    <div key={label} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                      <div style={{ width: 28, height: 28, borderRadius: '8px', background: `${color}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <Icon style={{ width: 12, height: 12, color }} />
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <p style={{ fontSize: '9px', color: '#475569', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{label}</p>
+                        <p style={{ fontSize: '12px', color: '#cbd5e1', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{value}</p>
+                      </div>
                     </div>
-                    <ChevronRight style={{width:13,height:13,color:'#475569'}}/>
+                  ))}
+                </div>
+
+                {/* Divider */}
+                <div style={{ height: '1px', background: 'rgba(255,255,255,0.07)', margin: '4px 0' }} />
+
+                {/* Action items */}
+                {[
+                  { icon: Ban, label: 'Blocked Users', color: '#f87171', action: () => { setMenuOpen(false); setShowBlocked(true) } },
+                  { icon: Info, label: 'About ONYX', color: '#60a5fa', action: () => { setMenuOpen(false); setShowAbout(true) } },
+                  ...(onTabChange ? [{ icon: Settings, label: 'Settings', color: '#94a3b8', action: () => { setMenuOpen(false); onTabChange('settings') } }] : []),
+                ].map(({ icon: Icon, label, color, action }) => (
+                  <motion.button key={label} onClick={action} whileHover={{ background: 'rgba(255,255,255,0.06)' }}
+                    style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '11px 16px', background: 'transparent', border: 'none', cursor: 'pointer' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <Icon style={{ width: 14, height: 14, color, flexShrink: 0 }} />
+                      <span style={{ fontSize: '13px', fontWeight: 500, color: '#e2e8f0' }}>{label}</span>
+                    </div>
+                    <ChevronRight style={{ width: 12, height: 12, color: '#475569' }} />
                   </motion.button>
                 ))}
+
+                {/* Divider */}
+                <div style={{ height: '1px', background: 'rgba(255,255,255,0.07)' }} />
+
+                {/* Sign Out */}
+                <motion.button whileHover={{ background: 'rgba(239,68,68,0.08)' }} onClick={() => {
+                  setMenuOpen(false); setSigning(true)
+                  for (let i = 0; i < localStorage.length; i++) {
+                    const key = localStorage.key(i)
+                    if (key && key.startsWith('sb-') && key.endsWith('-auth-token')) localStorage.removeItem(key)
+                  }
+                  window.location.href = '/login'
+                }} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 16px', background: 'transparent', border: 'none', cursor: 'pointer' }}>
+                  <LogOut style={{ width: 14, height: 14, color: '#f87171' }} />
+                  <span style={{ fontSize: '13px', fontWeight: 600, color: '#f87171' }}>{signing ? 'Signing out…' : 'Sign Out'}</span>
+                </motion.button>
               </motion.div>
             )}
           </AnimatePresence>
         </div>
       </div>
 
-      {/* Avatar */}
-      <div style={{display:'flex',flexDirection:'column',alignItems:'center',marginTop:'-52px',position:'relative',zIndex:2,paddingBottom:'8px'}}>
-        <motion.div onClick={()=>setShowAvatarModal(true)} whileHover={{scale:1.03}} style={{position:'relative',cursor:'pointer'}}>
+      {/* ── Avatar + Identity ── */}
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginTop: '-48px', position: 'relative', zIndex: 2, paddingBottom: '4px' }}>
+        <motion.div onClick={() => setShowAvatarModal(true)} whileHover={{ scale: 1.03 }} style={{ position: 'relative', cursor: 'pointer' }}>
           {profile?.avatarUrl
-            ?<img src={profile.avatarUrl} alt="" style={{width:100,height:100,borderRadius:'50%',objectFit:'cover',border:'3px solid #060b18',boxShadow:'0 0 0 3px rgba(37,99,235,0.5),0 12px 32px rgba(0,0,0,0.5)'}}/>
-            :<div style={{width:100,height:100,borderRadius:'50%',background:'linear-gradient(135deg,#2563eb,#7c3aed)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'32px',fontWeight:800,color:'#fff',border:'3px solid #060b18',boxShadow:'0 0 0 3px rgba(37,99,235,0.5)'}}>{initials}</div>
+            ? <img src={profile.avatarUrl} alt="" style={{ width: 96, height: 96, borderRadius: '50%', objectFit: 'cover', border: '3px solid #060b18', boxShadow: '0 0 0 3px rgba(37,99,235,0.5),0 12px 32px rgba(0,0,0,0.5)' }} />
+            : <div style={{ width: 96, height: 96, borderRadius: '50%', background: 'linear-gradient(135deg,#2563eb,#7c3aed)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '30px', fontWeight: 800, color: '#fff', border: '3px solid #060b18', boxShadow: '0 0 0 3px rgba(37,99,235,0.5)' }}>{initials}</div>
           }
-          <div style={{position:'absolute',bottom:2,right:2,width:28,height:28,borderRadius:'50%',background:'#2563eb',border:'2px solid #060b18',display:'flex',alignItems:'center',justifyContent:'center'}}>
-            <Camera style={{width:12,height:12,color:'#fff'}}/>
+          <div style={{ position: 'absolute', bottom: 2, right: 2, width: 26, height: 26, borderRadius: '50%', background: '#2563eb', border: '2px solid #060b18', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Camera style={{ width: 11, height: 11, color: '#fff' }} />
           </div>
         </motion.div>
-        <div style={{textAlign:'center',marginTop:'12px'}}>
-          <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:'6px'}}>
-            {isEditing?(
-              <div style={{display:'flex',gap:'6px'}}>
-                <input value={form.firstName} onChange={e=>setForm(f=>({...f,firstName:e.target.value}))} style={{...IS,width:'100px',textAlign:'center',fontSize:'14px'}} placeholder="First"/>
-                <input value={form.lastName} onChange={e=>setForm(f=>({...f,lastName:e.target.value}))} style={{...IS,width:'100px',textAlign:'center',fontSize:'14px'}} placeholder="Last"/>
-              </div>
-            ):(
-              <><h2 style={{fontSize:'22px',fontWeight:800,color:'#f0f4ff'}}>{[profile?.firstName,profile?.lastName].filter(Boolean).join(' ')||'MNIT Student'}</h2>
-              <BadgeCheck style={{width:20,height:20,color:'#3b82f6',flexShrink:0}}/></>
-            )}
-          </div>
-          {isEditing?(
-            <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:'4px',marginTop:'6px'}}>
-              <span style={{color:'#475569',fontSize:'13px'}}>@</span>
-              <input value={form.username} onChange={e=>setForm(f=>({...f,username:e.target.value}))} style={{...IS,width:'140px',textAlign:'center',fontSize:'13px',marginTop:0}} placeholder="username"/>
+
+        {/* Name row with inline pen icon */}
+        <div style={{ textAlign: 'center', marginTop: '10px' }}>
+          {isEditing ? (
+            <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
+              <input value={form.firstName} onChange={e => setForm(f => ({ ...f, firstName: e.target.value }))} style={{ ...IS, width: '100px', textAlign: 'center', fontSize: '14px' }} placeholder="First" />
+              <input value={form.lastName} onChange={e => setForm(f => ({ ...f, lastName: e.target.value }))} style={{ ...IS, width: '100px', textAlign: 'center', fontSize: '14px' }} placeholder="Last" />
             </div>
-          ):(
-            <p style={{fontSize:'14px',color:'#64748b',marginTop:'4px'}}>@{profile?.username||'—'}</p>
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+              <h2 style={{ fontSize: '22px', fontWeight: 800, color: '#f0f4ff' }}>
+                {[profile?.firstName, profile?.lastName].filter(Boolean).join(' ') || 'MNIT Student'}
+              </h2>
+              <BadgeCheck style={{ width: 18, height: 18, color: '#3b82f6', flexShrink: 0 }} />
+              {/* ── Premium Inline Edit Button ── */}
+              <motion.button
+                id="btn-edit-profile-icon"
+                whileTap={{ scale: 0.88 }} whileHover={{ scale: 1.08 }}
+                onClick={startEdit}
+                style={{
+                  width: 30, height: 30, borderRadius: '9px', flexShrink: 0,
+                  background: 'rgba(255,255,255,0.10)',
+                  border: '1px solid rgba(255,255,255,0.14)',
+                  backdropFilter: 'blur(12px)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  cursor: 'pointer', color: '#94a3b8',
+                  boxShadow: '0 2px 10px rgba(0,0,0,0.3)',
+                }}>
+                <Edit3 style={{ width: 13, height: 13 }} />
+              </motion.button>
+            </div>
           )}
-          {/* B.Tech Year Capsule Badge */}
+
+          {isEditing ? (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', marginTop: '6px' }}>
+              <span style={{ color: '#475569', fontSize: '13px' }}>@</span>
+              <input value={form.username} onChange={e => setForm(f => ({ ...f, username: e.target.value }))} style={{ ...IS, width: '140px', textAlign: 'center', fontSize: '13px', marginTop: 0 }} placeholder="username" />
+            </div>
+          ) : (
+            <p style={{ fontSize: '13px', color: '#64748b', marginTop: '3px' }}>@{profile?.username || '—'}</p>
+          )}
+
+          {/* B.Tech Year Badge */}
           {(profile?.btech_year || profile?.btechYear) && !isEditing && (
-            <div style={{
-              display:'inline-flex', alignItems:'center', gap:'5px',
-              marginTop:'8px', padding:'5px 14px', borderRadius:'20px',
-              background:'linear-gradient(135deg, rgba(245,158,11,0.12), rgba(251,191,36,0.08))',
-              border:'1px solid rgba(251,191,36,0.35)',
-              boxShadow:'0 0 14px rgba(251,191,36,0.15)',
-            }}>
-              <span style={{fontSize:'12px'}}>🎓</span>
-              <span style={{fontSize:'12px', fontWeight:700, color:'#fbbf24', letterSpacing:'0.03em'}}>
-                {profile.btech_year || profile.btechYear}
-              </span>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', marginTop: '6px', padding: '4px 12px', borderRadius: '20px', background: 'linear-gradient(135deg,rgba(245,158,11,0.12),rgba(251,191,36,0.08))', border: '1px solid rgba(251,191,36,0.35)', boxShadow: '0 0 14px rgba(251,191,36,0.15)' }}>
+              <span style={{ fontSize: '11px' }}>🎓</span>
+              <span style={{ fontSize: '11px', fontWeight: 700, color: '#fbbf24', letterSpacing: '0.03em' }}>{profile.btech_year || profile.btechYear}</span>
             </div>
           )}
         </div>
       </div>
 
-      <div style={{padding:'8px 16px 32px',display:'flex',flexDirection:'column',gap:'12px',maxWidth:'600px',margin:'0 auto'}}>
-        <div style={{display:'grid',gridTemplateColumns:'repeat(2, 1fr)',gap:'10px'}}>
-          <StatCard value={friendCount??'—'} label="Friends" color="#60a5fa" onClick={()=>setShowFriends(true)}/>
-          <StatCard value="—" label="Groups" color="#34d399"/>
-        </div>
-        <AnimatePresence>
-          {saveError&&(
-            <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}}
-              style={{display:'flex',gap:'8px',padding:'10px 14px',borderRadius:'12px',background:'rgba(239,68,68,0.1)',border:'1px solid rgba(239,68,68,0.25)'}}>
-              <AlertCircle style={{width:14,height:14,color:'#f87171',flexShrink:0,marginTop:1}}/>
-              <p style={{fontSize:'12px',color:'#fca5a5'}}>{saveError}</p>
-            </motion.div>
-          )}
-        </AnimatePresence>
-        {isEditing?(
-          <div style={{display:'flex',gap:'10px'}}>
-            <motion.button onClick={handleSave} disabled={saving} whileTap={{scale:0.97}}
-              style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',gap:'8px',padding:'13px',borderRadius:'14px',border:'none',background:'#16a34a',color:'#fff',fontSize:'14px',fontWeight:600,cursor:'pointer'}}>
-              <Save style={{width:15,height:15}}/> {saving?'Saving…':'Save Changes'}
-            </motion.button>
-            <motion.button onClick={()=>{setIsEditing(false);setSaveError(null)}} whileTap={{scale:0.97}}
-              style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',gap:'8px',padding:'13px',borderRadius:'14px',border:'1px solid rgba(255,255,255,0.1)',background:'rgba(255,255,255,0.05)',color:'#94a3b8',fontSize:'14px',fontWeight:600,cursor:'pointer'}}>
-              <X style={{width:15,height:15}}/> Cancel
-            </motion.button>
-          </div>
-        ):(
-          <motion.button id="btn-edit-profile" onClick={startEdit} whileHover={{y:-1}} whileTap={{scale:0.97}}
-            style={{display:'flex',alignItems:'center',justifyContent:'center',gap:'8px',padding:'13px',borderRadius:'14px',border:'none',background:'linear-gradient(135deg,#2563eb,#1d4ed8)',color:'#fff',fontSize:'14px',fontWeight:600,cursor:'pointer',boxShadow:'0 6px 20px rgba(37,99,235,0.4)'}}>
-            <Edit3 style={{width:15,height:15}}/> Edit Profile
-          </motion.button>
-        )}
-        <SectionCard title="About Me" icon={FileText} iconColor="#60a5fa">
-          {isEditing?(
-            <div style={{display:'flex',flexDirection:'column',gap:'8px'}}>
-              <label style={{fontSize:'10px',fontWeight:600,color:'#475569',textTransform:'uppercase',letterSpacing:'0.06em'}}>Bio</label>
-              <textarea value={form.bio} onChange={e=>setForm(f=>({...f,bio:e.target.value}))} rows={3} maxLength={200} placeholder="Write a short bio…" style={{...IS,resize:'none',fontFamily:'inherit',lineHeight:1.55}}/>
+      {/* ── Stats Row ── */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '8px', padding: '16px 20px 0', maxWidth: '480px', margin: '0 auto' }}>
+        {[
+          { value: posts.length, label: 'Posts', color: '#a78bfa' },
+          { value: friendCount ?? '—', label: 'Friends', color: '#60a5fa', onClick: () => setShowFriends(true) },
+          { value: (profile?.btech_year || profile?.btechYear) ? (profile.btech_year || profile.btechYear).replace(' Year', '') : '—', label: 'Year', color: '#34d399' },
+        ].map(({ value, label, color, onClick }) => (
+          <motion.div key={label} whileTap={onClick ? { scale: 0.95 } : {}} onClick={onClick}
+            style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '12px 8px', borderRadius: '16px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', cursor: onClick ? 'pointer' : 'default' }}>
+            <span style={{ fontSize: '20px', fontWeight: 800, color }}>{value}</span>
+            <span style={{ fontSize: '10px', color: '#475569', marginTop: 3, fontWeight: 500 }}>{label}</span>
+          </motion.div>
+        ))}
+      </div>
+
+      {/* ── Edit Actions (only when editing) ── */}
+      <AnimatePresence>
+        {isEditing && (
+          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
+            style={{ padding: '12px 20px 0', maxWidth: '480px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <AnimatePresence>
+              {saveError && (
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                  style={{ display: 'flex', gap: '8px', padding: '10px 14px', borderRadius: '12px', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)' }}>
+                  <AlertCircle style={{ width: 14, height: 14, color: '#f87171', flexShrink: 0, marginTop: 1 }} />
+                  <p style={{ fontSize: '12px', color: '#fca5a5' }}>{saveError}</p>
+                </motion.div>
+              )}
+            </AnimatePresence>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <motion.button onClick={handleSave} disabled={saving} whileTap={{ scale: 0.97 }}
+                style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '12px', borderRadius: '14px', border: 'none', background: '#16a34a', color: '#fff', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}>
+                <Save style={{ width: 14, height: 14 }} /> {saving ? 'Saving…' : 'Save Changes'}
+              </motion.button>
+              <motion.button onClick={() => { setIsEditing(false); setSaveError(null) }} whileTap={{ scale: 0.97 }}
+                style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '12px', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.05)', color: '#94a3b8', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}>
+                <X style={{ width: 14, height: 14 }} /> Cancel
+              </motion.button>
             </div>
-          ):(
-            <p style={{fontSize:'13px',color:profile?.bio?'#94a3b8':'#334155',lineHeight:1.65,marginBottom:'12px'}}>
-              {profile?.bio||'No bio yet. Click Edit Profile to add one.'}
+            {/* UPI field in edit mode */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', padding: '10px', background: 'rgba(16,185,129,0.06)', border: '1px solid rgba(16,185,129,0.15)', borderRadius: '12px' }}>
+              <label style={{ fontSize: '10px', fontWeight: 600, color: '#10b981', textTransform: 'uppercase', letterSpacing: '0.06em' }}>UPI ID (Campus Store)</label>
+              <input value={form.upiId || ''} onChange={e => setForm(f => ({ ...f, upiId: e.target.value }))} placeholder="yourname@upi" style={{ ...IS, borderColor: 'rgba(16,185,129,0.2)' }} />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Compact Bio ── */}
+      <div style={{ padding: '14px 20px 0', maxWidth: '480px', margin: '0 auto' }}>
+        {isEditing ? (
+          <textarea value={form.bio} onChange={e => setForm(f => ({ ...f, bio: e.target.value }))} rows={3} maxLength={200} placeholder="Write a short bio…"
+            style={{ ...IS, resize: 'none', fontFamily: 'inherit', lineHeight: 1.55, fontSize: '13px' }} />
+        ) : (
+          profile?.bio ? (
+            <p style={{ fontSize: '13px', color: '#94a3b8', lineHeight: 1.65, textAlign: 'center' }}>{profile.bio}</p>
+          ) : (
+            <p style={{ fontSize: '12px', color: '#334155', lineHeight: 1.65, textAlign: 'center', fontStyle: 'italic' }}>
+              No bio yet — tap the ✏️ to add one.
             </p>
-          )}
-          <div style={{marginTop:isEditing?'12px':0}}>
-            <InfoRow icon={Hash} label="Username" value={`@${profile?.username||'—'}`} iconColor="#60a5fa"/>
-            <InfoRow icon={GraduationCap} label="Institute" value="MNIT Jaipur" iconColor="#a78bfa"/>
-            {(profile?.btech_year || profile?.btechYear) && <InfoRow icon={Clock} label="B.Tech Year" value={profile.btech_year || profile.btechYear} iconColor="#f59e0b"/>}
-            <InfoRow icon={Mail} label="Auth Method" value={authMeta?.app_metadata?.provider==='google'?'Google OAuth':authMeta?.email??'—'} iconColor="#34d399"/>
-            <div style={{borderBottom:'none'}}>
-              <InfoRow icon={Shield} label="Email" value={authMeta?.email??'—'} iconColor="#f59e0b"/>
-            </div>
-            {isEditing?(
-              <div style={{display:'flex',flexDirection:'column',gap:'6px',marginTop:'10px',padding:'10px',background:'rgba(16,185,129,0.06)',border:'1px solid rgba(16,185,129,0.15)',borderRadius:'12px'}}>
-                <label style={{fontSize:'10px',fontWeight:600,color:'#10b981',textTransform:'uppercase',letterSpacing:'0.06em'}}>UPI ID (for Campus Store payments)</label>
-                <input value={form.upiId||''} onChange={e=>setForm(f=>({...f,upiId:e.target.value}))} placeholder="yourname@upi" style={{...IS,borderColor:'rgba(16,185,129,0.2)'}}/>
-              </div>
-            ):initialProfile?.upi_id?(
-              <InfoRow icon={Shield} label="UPI ID" value={initialProfile.upi_id} iconColor="#10b981"/>
-            ):null}
-          </div>
-        </SectionCard>
-        <SectionCard title="Activity Overview" icon={Activity} iconColor="#a78bfa">
-          <div style={{display:'flex',alignItems:'center',gap:'12px',padding:'10px 0',borderBottom:'1px solid rgba(255,255,255,0.05)'}}>
-            <div style={{width:34,height:34,borderRadius:'10px',background:'rgba(52,211,153,0.15)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
-              <div style={{width:10,height:10,borderRadius:'50%',background:'#34d399'}} className="pulse-ring"/>
-            </div>
-            <div>
-              <p style={{fontSize:'10px',color:'#475569',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.06em'}}>Active Status</p>
-              <p style={{fontSize:'13px',color:'#34d399',marginTop:2,fontWeight:500}}>Online Now</p>
-            </div>
-          </div>
-          <InfoRow icon={Clock} label="Member Since" value={memberSince} iconColor="#60a5fa"/>
-          <InfoRow icon={Zap} label="Last Seen" value={lastSeen} iconColor="#f59e0b"/>
-        </SectionCard>
-        {!isEditing&&(
-          <motion.button onClick={()=>{
-            setSigning(true)
-            for (let i = 0; i < localStorage.length; i++) {
-              const key = localStorage.key(i)
-              if (key && key.startsWith('sb-') && key.endsWith('-auth-token')) localStorage.removeItem(key)
-            }
-            window.location.href = '/login'
-          }} disabled={signing} whileTap={{scale:0.97}}
-            style={{display:'flex',alignItems:'center',justifyContent:'center',gap:'8px',padding:'13px',borderRadius:'14px',border:'1px solid rgba(239,68,68,0.3)',background:'rgba(239,68,68,0.07)',color:'#f87171',fontSize:'14px',fontWeight:600,cursor:'pointer',opacity:signing?0.6:1}}>
-            <LogOut style={{width:15,height:15}}/> {signing?'Signing out…':'Sign Out'}
-          </motion.button>
-        )}
-        {!isEditing && onTabChange && (
-          <motion.button onClick={() => onTabChange('settings')} whileTap={{scale:0.97}} className="md:hidden"
-            style={{display:'flex',alignItems:'center',justifyContent:'center',gap:'8px',padding:'13px',borderRadius:'14px',border:'1px solid rgba(255,255,255,0.1)',background:'rgba(255,255,255,0.05)',color:'#94a3b8',fontSize:'14px',fontWeight:600,cursor:'pointer'}}>
-            <Settings style={{width:15,height:15}}/> Settings
-          </motion.button>
+          )
         )}
       </div>
 
+      {/* ── Posts Grid ── */}
+      <div style={{ padding: '16px 2px 80px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '0 16px 10px', maxWidth: '480px', margin: '0 auto' }}>
+          <Hash style={{ width: 13, height: 13, color: '#475569' }} />
+          <p style={{ fontSize: '10px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Posts</p>
+        </div>
+
+        {postsLoading ? (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '2px' }}>
+            {[1, 2, 3, 4, 5, 6].map(i => (
+              <div key={i} style={{ aspectRatio: '1', background: 'rgba(255,255,255,0.04)', borderRadius: '4px' }} className="animate-pulse" />
+            ))}
+          </div>
+        ) : posts.length === 0 ? (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '48px 20px', gap: '10px' }}>
+            <div style={{ width: 52, height: 52, borderRadius: '50%', border: '2px solid #1e293b', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <FileText style={{ width: 22, height: 22, color: '#334155' }} />
+            </div>
+            <p style={{ fontSize: '15px', fontWeight: 700, color: '#334155' }}>No Posts Yet</p>
+            <p style={{ fontSize: '12px', color: '#1e293b', textAlign: 'center' }}>Your posts will appear here.</p>
+          </div>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '2px' }}>
+            {posts.map(post => {
+              if (!post?.id) return null
+              const hasMedia = !!post.media_url
+              return (
+                <motion.div key={post.id} whileHover={{ opacity: 0.80 }} onClick={() => setExpandedPost(post)}
+                  style={{
+                    aspectRatio: '1', position: 'relative', cursor: 'pointer',
+                    background: hasMedia ? '#111827' : 'linear-gradient(135deg,#0f172a,#1e1b4b)',
+                    overflow: 'hidden', borderRadius: '3px',
+                  }}>
+                  {post.media_type === 'video' ? (
+                    <>
+                      <video src={post.media_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      <div style={{ position: 'absolute', top: 6, right: 6, background: 'rgba(0,0,0,0.5)', borderRadius: '50%', padding: '3px', display: 'flex' }}>
+                        <svg viewBox="0 0 24 24" width="10" height="10" fill="white"><polygon points="5,3 19,12 5,21" /></svg>
+                      </div>
+                    </>
+                  ) : hasMedia ? (
+                    <img src={post.media_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  ) : (
+                    /* Text-only post — gradient placeholder with truncated text */
+                    <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '10px', background: 'linear-gradient(135deg,rgba(59,130,246,0.12),rgba(124,58,237,0.12))' }}>
+                      <p style={{ fontSize: '9px', color: '#94a3b8', lineHeight: 1.5, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 5, WebkitBoxOrient: 'vertical', textAlign: 'center' }}>
+                        {post.content}
+                      </p>
+                    </div>
+                  )}
+                </motion.div>
+              )
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* ── Modals ── */}
       <AnimatePresence>
-        {showAvatarModal&&<AvatarModal profile={profile} onClose={()=>setShowAvatarModal(false)} onAvatarChanged={url=>setProfile(p=>({...p,avatarUrl:url}))}/> }
+        {showAvatarModal && <AvatarModal profile={profile} onClose={() => setShowAvatarModal(false)} onAvatarChanged={url => setProfile(p => ({ ...p, avatarUrl: url }))} />}
       </AnimatePresence>
       <AnimatePresence>
-        {showBlocked&&initialProfile&&<BlockedUsersModal profile={initialProfile} onClose={()=>setShowBlocked(false)}/>}
+        {showBlocked && initialProfile && <BlockedUsersModal profile={initialProfile} onClose={() => setShowBlocked(false)} />}
       </AnimatePresence>
       <AnimatePresence>
-        {showAbout&&<AboutModal onClose={()=>setShowAbout(false)}/>}
+        {showAbout && <AboutModal onClose={() => setShowAbout(false)} />}
       </AnimatePresence>
       <AnimatePresence>
-        {showFriends&&initialProfile&&<FriendsListModal profile={initialProfile} onClose={()=>setShowFriends(false)} onUnfriend={()=>setFriendCount(prev=>Math.max(0, prev-1))} />}
+        {showFriends && initialProfile && <FriendsListModal profile={initialProfile} onClose={() => setShowFriends(false)} onUnfriend={() => setFriendCount(prev => Math.max(0, prev - 1))} />}
       </AnimatePresence>
     </div>
   )
 }
+
+
