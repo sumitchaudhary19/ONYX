@@ -1,8 +1,9 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { User, Lock, ChevronRight, ChevronLeft, Calendar, Camera, X, Check, XCircle, Loader2 } from 'lucide-react'
+import { User, Lock, ChevronRight, ChevronLeft, Calendar, Camera, X, Check, XCircle, Loader2, Sparkles, ScanLine, ShieldCheck } from 'lucide-react'
 import { supabase } from '../supabaseClient'
 import ComingSoonToast from './ComingSoonToast'
+import { parseMnitEmail, calcBtechYear } from '../utils/campusUtils'
 
 // ── Constants ──────────────────────────────────────────────────────────────
 const TENANTS = { C1: 'college_1', C2: 'college_2' }
@@ -36,6 +37,101 @@ const pageVariants = {
   exit: (dir) => ({ x: dir > 0 ? -300 : 300, opacity: 0 }),
 }
 const pageTransition = { type: 'spring', stiffness: 300, damping: 30 }
+
+// ── Smart Decrypt Step ─────────────────────────────────────────────────────
+// Shown right after Google OAuth returns for an MNIT email.
+// Animates a scanning effect, then auto-advances after 2s.
+function StepSmartDecrypt({ detected, onNext }) {
+  const [phase, setPhase] = useState('scanning') // scanning | revealed
+
+  useEffect(() => {
+    const t1 = setTimeout(() => setPhase('revealed'), 1400)
+    const t2 = setTimeout(() => onNext(), 2800)
+    return () => { clearTimeout(t1); clearTimeout(t2) }
+  }, [onNext])
+
+  const rows = [
+    { label: 'Institution', value: 'MNIT Jaipur', color: '#22d3ee' },
+    { label: 'Branch', value: detected?.branch || '—', color: '#a78bfa' },
+    { label: 'Academic Year', value: detected?.btechYear || '—', color: '#34d399' },
+    { label: 'Level', value: detected?.level === 'p' ? 'Post Graduate' : 'Under Graduate', color: '#fbbf24' },
+  ]
+
+  return (
+    <div className="flex flex-col items-center justify-center h-full px-6 gap-8">
+      {/* Animated Icon */}
+      <motion.div
+        animate={phase === 'scanning'
+          ? { boxShadow: ['0 0 20px rgba(34,211,238,0.3)', '0 0 60px rgba(34,211,238,0.7)', '0 0 20px rgba(34,211,238,0.3)'] }
+          : { boxShadow: '0 0 40px rgba(52,211,153,0.5)' }}
+        transition={{ duration: 1, repeat: phase === 'scanning' ? Infinity : 0 }}
+        className="w-20 h-20 rounded-2xl flex items-center justify-center"
+        style={{ background: 'linear-gradient(135deg, rgba(34,211,238,0.15), rgba(139,92,246,0.15))', border: '1px solid rgba(34,211,238,0.3)' }}
+      >
+        <AnimatePresence mode="wait">
+          {phase === 'scanning' ? (
+            <motion.div key="scan" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+              <ScanLine className="w-9 h-9 text-cyan-400" />
+            </motion.div>
+          ) : (
+            <motion.div key="done" initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', stiffness: 400, damping: 20 }}>
+              <ShieldCheck className="w-9 h-9 text-emerald-400" />
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </motion.div>
+
+      {/* Text */}
+      <div className="text-center">
+        <motion.p
+          key={phase}
+          initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+          className="text-lg font-bold text-white"
+        >
+          {phase === 'scanning' ? 'Decrypting Student ID...' : 'Identity Confirmed ✓'}
+        </motion.p>
+        <p className="text-sm text-slate-500 mt-1">
+          {phase === 'scanning' ? 'Parsing your institutional email' : 'Pre-filling your profile now'}
+        </p>
+      </div>
+
+      {/* Data rows */}
+      <AnimatePresence>
+        {phase === 'revealed' && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+            className="w-full max-w-xs bg-white/5 rounded-3xl border border-white/10 overflow-hidden backdrop-blur-xl"
+          >
+            {rows.map((row, i) => (
+              <motion.div
+                key={row.label}
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: i * 0.1 }}
+                className="flex items-center justify-between px-5 py-3 border-b border-white/5 last:border-0"
+              >
+                <span className="text-xs text-slate-500 font-mono uppercase tracking-widest">{row.label}</span>
+                <span className="text-sm font-bold" style={{ color: row.color }}>{row.value}</span>
+              </motion.div>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Scanning bar */}
+      {phase === 'scanning' && (
+        <div className="w-full max-w-xs h-0.5 bg-white/5 rounded-full overflow-hidden">
+          <motion.div
+            className="h-full bg-gradient-to-r from-cyan-400 to-violet-400 rounded-full"
+            initial={{ width: '0%' }}
+            animate={{ width: '100%' }}
+            transition={{ duration: 1.4, ease: 'easeInOut' }}
+          />
+        </div>
+      )}
+    </div>
+  )
+}
 
 // ── Shared UI Primitives ───────────────────────────────────────────────────
 function OnyxLogo({ size = 'lg' }) {
@@ -653,9 +749,10 @@ function StepDOB({ formData, setFormData, onNext }) {
 }
 
 // ── Step 6: Academics ──────────────────────────────────────────────────────
-function StepAcademics({ formData, setFormData, authMode, onNext }) {
+function StepAcademics({ formData, setFormData, authMode, detected, onNext }) {
   const showSection = formData.btechYear === '1st Year' || (authMode === 'guest' && formData.btechYear === 'Fresher')
   const valid = formData.btechYear && formData.branch
+  const isAutoFilled = !!(detected?.branch || detected?.btechYear)
 
   useEffect(() => {
     if (authMode === 'guest') {
@@ -667,6 +764,18 @@ function StepAcademics({ formData, setFormData, authMode, onNext }) {
     <div className="flex flex-col items-center h-full py-12 px-6">
       <OnyxLogo size="sm" />
       <div className="w-full max-w-xs mt-auto flex flex-col gap-4 mb-8">
+
+        {/* Auto-detect banner */}
+        {isAutoFilled && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-2xl border border-cyan-400/20 bg-cyan-400/5"
+          >
+            <ShieldCheck size={14} className="text-cyan-400 shrink-0" />
+            <span className="text-xs text-cyan-300/80">Auto-detected from your MNIT email. You can still edit these.</span>
+          </motion.div>
+        )}
+
         {authMode === 'guest' ? (
           <CapsuleInput icon={Calendar} placeholder="Year" value="Fresher" disabled />
         ) : (
@@ -696,6 +805,7 @@ function StepAcademics({ formData, setFormData, authMode, onNext }) {
     </div>
   )
 }
+
 
 // ── Step 7: Profile Identity ───────────────────────────────────────────────
 function StepProfile({ formData, setFormData, submitting, onSubmit }) {
@@ -802,6 +912,7 @@ export default function OnboardingWizard({ onComplete, session }) {
   const [submitting, setSubmitting] = useState(false)
   const [usernameStatus, setUsernameStatus] = useState('idle')
   const [tenant, setTenant] = useState(() => localStorage.getItem('onyx_tenant') || null)
+  const [detected, setDetected] = useState(null) // parsed MNIT email data
   const debounceRef = useRef(null)
 
   const [formData, setFormData] = useState({
@@ -827,7 +938,29 @@ export default function OnboardingWizard({ onComplete, session }) {
           lastName: meta.full_name?.split(' ').slice(1).join(' ') || meta.last_name || '',
         }))
       }
-      setStep(3)
+
+      // ── Smart Auto-Detect: Parse MNIT email ──
+      const email = session.user.email || ''
+      const parsed = parseMnitEmail(email)
+      if (parsed) {
+        const btechYear = parsed.level === 'u' ? calcBtechYear(parsed.admissionYear) : null
+        setDetected({
+          branch: parsed.branch,
+          btechYear,
+          branchCode: parsed.branchCode,
+          level: parsed.level,
+          admissionYear: parsed.admissionYear,
+        })
+        // Pre-fill formData with detected academic info
+        setFormData(p => ({
+          ...p,
+          branch: parsed.branch || p.branch,
+          btechYear: btechYear || p.btechYear,
+        }))
+        setStep(3) // Go to SmartDecrypt reveal step first
+      } else {
+        setStep(4) // Skip decrypt step for non-MNIT users
+      }
     }
   }, [session])
 
@@ -982,7 +1115,7 @@ export default function OnboardingWizard({ onComplete, session }) {
     }
   }
 
-  const totalSteps = 7
+  const totalSteps = 8 // Added SmartDecrypt as step 3
 
   return (
     <div className="onyx-wizard-bg h-full w-full relative overflow-hidden flex flex-col">
@@ -996,15 +1129,15 @@ export default function OnboardingWizard({ onComplete, session }) {
           style={{ background: 'radial-gradient(circle, rgba(6,182,212,0.08) 0%, transparent 70%)' }} />
       </div>
 
-      {/* Back Button */}
-      {step > 1 && step <= 7 && !loading && (
+      {/* Back Button — hide on decrypt step (step 3 with detected) */}
+      {step > 1 && step <= totalSteps && !loading && step !== 3 && (
         <BackButton onClick={goBack} />
       )}
 
-      {/* Step Indicator */}
-      {step >= 3 && (
+      {/* Step Indicator — skip for decrypt step */}
+      {step >= 4 && (
         <div className="relative z-10 pt-6 px-6">
-          <StepIndicator current={step - 2} total={totalSteps - 2} />
+          <StepIndicator current={step - 3} total={totalSteps - 3} />
         </div>
       )}
 
@@ -1020,11 +1153,15 @@ export default function OnboardingWizard({ onComplete, session }) {
 
             {step === 1 && <StepWelcome onNext={goNext} />}
             {step === 2 && <StepAuthSelection onGoogle={handleGoogle} onGuest={handleGuest} loading={loading} tenant={tenant} setTenant={setTenant} onTenantCreate={() => { setAuthMode('tenant'); goNext() }} />}
-            {step === 3 && <StepName formData={formData} setFormData={setFormData} onNext={goNext} />}
-            {step === 4 && <StepCredentials formData={formData} setFormData={setFormData} authMode={authMode} usernameStatus={usernameStatus} onNext={goNext} />}
-            {step === 5 && <StepDOB formData={formData} setFormData={setFormData} onNext={goNext} />}
-            {step === 6 && <StepAcademics formData={formData} setFormData={setFormData} authMode={authMode} onNext={goNext} />}
-            {step === 7 && <StepProfile formData={formData} setFormData={setFormData} submitting={submitting} onSubmit={handleSubmit} />}
+            {/* Step 3: Smart Decrypt — only shown for MNIT Google users */}
+            {step === 3 && detected && (
+              <StepSmartDecrypt detected={detected} onNext={goNext} />
+            )}
+            {step === 4 && <StepName formData={formData} setFormData={setFormData} onNext={goNext} />}
+            {step === 5 && <StepCredentials formData={formData} setFormData={setFormData} authMode={authMode} usernameStatus={usernameStatus} onNext={goNext} />}
+            {step === 6 && <StepDOB formData={formData} setFormData={setFormData} onNext={goNext} />}
+            {step === 7 && <StepAcademics formData={formData} setFormData={setFormData} authMode={authMode} detected={detected} onNext={goNext} />}
+            {step === 8 && <StepProfile formData={formData} setFormData={setFormData} submitting={submitting} onSubmit={handleSubmit} />}
 
           </motion.div>
         </AnimatePresence>
