@@ -497,6 +497,74 @@ export default function Profile({ profile: initialProfile, onTabChange }) {
         )}
       </AnimatePresence>
 
+      {/* ── Kebab Menu (top-right) ── */}
+      <div ref={menuRef} style={{ position: 'absolute', top: '14px', right: '14px', zIndex: 100 }}>
+        <motion.button whileTap={{ scale: 0.88 }} onClick={() => setMenuOpen(v => !v)}
+          style={{ width: 36, height: 36, borderRadius: '11px', background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#f0f4ff', backdropFilter: 'blur(8px)' }}>
+          <MoreVertical style={{ width: 16, height: 16 }} />
+        </motion.button>
+        <AnimatePresence>
+          {menuOpen && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.88, y: -8 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.88, y: -8 }}
+              transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+              style={{ position: 'absolute', top: '44px', right: 0, width: '260px', background: 'linear-gradient(180deg,#0d1630,#080e22)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '20px', overflow: 'hidden', zIndex: 200, boxShadow: '0 16px 48px rgba(0,0,0,0.7)' }}>
+
+              {/* Metadata section */}
+              <div style={{ padding: '10px 14px 6px' }}>
+                <p style={{ fontSize: '9px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '4px' }}>Account Info</p>
+                {menuSections[0].items.map(({ icon: Icon, label, value, color }) => (
+                  <div key={label} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                    <div style={{ width: 28, height: 28, borderRadius: '8px', background: `${color}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <Icon style={{ width: 12, height: 12, color }} />
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ fontSize: '9px', color: '#475569', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{label}</p>
+                      <p style={{ fontSize: '12px', color: '#cbd5e1', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{value}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Divider */}
+              <div style={{ height: '1px', background: 'rgba(255,255,255,0.07)', margin: '4px 0' }} />
+
+              {/* Action items */}
+              {[
+                { icon: Ban, label: 'Blocked Users', color: '#f87171', action: () => { setMenuOpen(false); setShowBlocked(true) } },
+                { icon: Info, label: 'About ONYX', color: '#60a5fa', action: () => { setMenuOpen(false); setShowAbout(true) } },
+                ...(onTabChange ? [{ icon: Settings, label: 'Settings', color: '#94a3b8', action: () => { setMenuOpen(false); onTabChange('settings') } }] : []),
+              ].map(({ icon: Icon, label, color, action }) => (
+                <motion.button key={label} onClick={action} whileHover={{ background: 'rgba(255,255,255,0.06)' }}
+                  style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '11px 16px', background: 'transparent', border: 'none', cursor: 'pointer' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <Icon style={{ width: 14, height: 14, color, flexShrink: 0 }} />
+                    <span style={{ fontSize: '13px', fontWeight: 500, color: '#e2e8f0' }}>{label}</span>
+                  </div>
+                  <ChevronRight style={{ width: 12, height: 12, color: '#475569' }} />
+                </motion.button>
+              ))}
+
+              {/* Divider */}
+              <div style={{ height: '1px', background: 'rgba(255,255,255,0.07)' }} />
+
+              {/* Sign Out */}
+              <motion.button whileHover={{ background: 'rgba(239,68,68,0.08)' }} onClick={() => {
+                setMenuOpen(false); setSigning(true)
+                for (let i = 0; i < localStorage.length; i++) {
+                  const key = localStorage.key(i)
+                  if (key && key.startsWith('sb-') && key.endsWith('-auth-token')) localStorage.removeItem(key)
+                }
+                window.location.href = '/login'
+              }} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 16px', background: 'transparent', border: 'none', cursor: 'pointer' }}>
+                <LogOut style={{ width: 14, height: 14, color: '#f87171' }} />
+                <span style={{ fontSize: '13px', fontWeight: 600, color: '#f87171' }}>{signing ? 'Signing out…' : 'Sign Out'}</span>
+              </motion.button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
       {/* ── Cover Strip ── */}
       <div style={{
         position: 'relative', height: '140px',
@@ -506,74 +574,6 @@ export default function Profile({ profile: initialProfile, onTabChange }) {
         <div style={{ position: 'absolute', width: '300px', height: '300px', borderRadius: '50%', background: 'radial-gradient(circle,rgba(37,99,235,0.25),transparent 70%)', top: '-80px', right: '-60px' }} />
         <div style={{ position: 'absolute', width: '200px', height: '200px', borderRadius: '50%', background: 'radial-gradient(circle,rgba(124,58,237,0.2),transparent 70%)', bottom: '-60px', left: '20px' }} />
         <div style={{ position: 'absolute', inset: 0, backgroundImage: 'linear-gradient(rgba(255,255,255,0.03) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.03) 1px,transparent 1px)', backgroundSize: '32px 32px' }} />
-
-        {/* ── Kebab Menu (top-right) ── */}
-        <div ref={menuRef} style={{ position: 'absolute', top: '14px', right: '14px', zIndex: 10 }}>
-          <motion.button whileTap={{ scale: 0.88 }} onClick={() => setMenuOpen(v => !v)}
-            style={{ width: 36, height: 36, borderRadius: '11px', background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#f0f4ff', backdropFilter: 'blur(8px)' }}>
-            <MoreVertical style={{ width: 16, height: 16 }} />
-          </motion.button>
-          <AnimatePresence>
-            {menuOpen && (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.88, y: -8 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.88, y: -8 }}
-                transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
-                style={{ position: 'absolute', top: '44px', right: 0, width: '260px', background: 'linear-gradient(180deg,#0d1630,#080e22)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '20px', overflow: 'hidden', zIndex: 200, boxShadow: '0 16px 48px rgba(0,0,0,0.7)' }}>
-
-                {/* Metadata section */}
-                <div style={{ padding: '10px 14px 6px' }}>
-                  <p style={{ fontSize: '9px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '4px' }}>Account Info</p>
-                  {menuSections[0].items.map(({ icon: Icon, label, value, color }) => (
-                    <div key={label} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                      <div style={{ width: 28, height: 28, borderRadius: '8px', background: `${color}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                        <Icon style={{ width: 12, height: 12, color }} />
-                      </div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <p style={{ fontSize: '9px', color: '#475569', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{label}</p>
-                        <p style={{ fontSize: '12px', color: '#cbd5e1', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{value}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Divider */}
-                <div style={{ height: '1px', background: 'rgba(255,255,255,0.07)', margin: '4px 0' }} />
-
-                {/* Action items */}
-                {[
-                  { icon: Ban, label: 'Blocked Users', color: '#f87171', action: () => { setMenuOpen(false); setShowBlocked(true) } },
-                  { icon: Info, label: 'About ONYX', color: '#60a5fa', action: () => { setMenuOpen(false); setShowAbout(true) } },
-                  ...(onTabChange ? [{ icon: Settings, label: 'Settings', color: '#94a3b8', action: () => { setMenuOpen(false); onTabChange('settings') } }] : []),
-                ].map(({ icon: Icon, label, color, action }) => (
-                  <motion.button key={label} onClick={action} whileHover={{ background: 'rgba(255,255,255,0.06)' }}
-                    style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '11px 16px', background: 'transparent', border: 'none', cursor: 'pointer' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <Icon style={{ width: 14, height: 14, color, flexShrink: 0 }} />
-                      <span style={{ fontSize: '13px', fontWeight: 500, color: '#e2e8f0' }}>{label}</span>
-                    </div>
-                    <ChevronRight style={{ width: 12, height: 12, color: '#475569' }} />
-                  </motion.button>
-                ))}
-
-                {/* Divider */}
-                <div style={{ height: '1px', background: 'rgba(255,255,255,0.07)' }} />
-
-                {/* Sign Out */}
-                <motion.button whileHover={{ background: 'rgba(239,68,68,0.08)' }} onClick={() => {
-                  setMenuOpen(false); setSigning(true)
-                  for (let i = 0; i < localStorage.length; i++) {
-                    const key = localStorage.key(i)
-                    if (key && key.startsWith('sb-') && key.endsWith('-auth-token')) localStorage.removeItem(key)
-                  }
-                  window.location.href = '/login'
-                }} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 16px', background: 'transparent', border: 'none', cursor: 'pointer' }}>
-                  <LogOut style={{ width: 14, height: 14, color: '#f87171' }} />
-                  <span style={{ fontSize: '13px', fontWeight: 600, color: '#f87171' }}>{signing ? 'Signing out…' : 'Sign Out'}</span>
-                </motion.button>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
       </div>
 
       {/* ── Avatar + Identity ── */}
