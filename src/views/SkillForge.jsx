@@ -52,6 +52,7 @@ export default function SkillForge({ profile, session }) {
   const [showCreate, setShowCreate] = useState(false)
   const [proposeTarget, setProposeTarget] = useState(null) // gig proposal
   const [pitchTarget, setPitchTarget] = useState(null)     // startup pitch
+  const [reviewTarget, setReviewTarget] = useState(null)
   const [toast, setToast] = useState(null)
   const [editTarget, setEditTarget] = useState(null)
 
