@@ -658,6 +658,7 @@ function CreateForgeModal({ profile, onClose, onCreated }) {
     try {
       await supabase.from('forge_listings').insert({
         owner_id: profile.id,
+        tenant_id: profile.tenant_id || null,
         listing_type: form.listing_type,
         title: form.title.trim(),
         description: form.description.trim(),

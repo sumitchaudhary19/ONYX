@@ -6,6 +6,7 @@
 -- 1. FORGE_LISTINGS table
 CREATE TABLE IF NOT EXISTS forge_listings (
   id                   uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  tenant_id            text,
   owner_id             uuid REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
   listing_type         text NOT NULL CHECK (listing_type IN ('looking_for_skill', 'offering_skill', 'startup_cofounder')),
   title                text NOT NULL,
