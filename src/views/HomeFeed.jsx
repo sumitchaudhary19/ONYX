@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabaseClient'
 import { PostCard } from './Feed'
-import { Sparkles, Aperture, Eye, X, Play, Trash2, Users, UserPlus } from 'lucide-react'
+import { Sparkles, Aperture, Eye, X, Play, Trash2, Users, UserPlus, Zap } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { getCampusAcronym } from '../utils/campusUtils'
 
@@ -127,17 +127,94 @@ function OwnStoryModal({ story, onClose, onDelete }) {
   )
 }
 
+function EchoModal({ currentProfile, onClose, onPosted }) {
+  const [text, setText] = useState('')
+  const [uploading, setUploading] = useState(false)
+  const [error, setError] = useState(null)
+
+  const submit = async () => {
+    if (!text.trim()) return
+    if (text.length > 280) return
+    setUploading(true); setError(null)
+    try {
+      const { data: post, error: postErr } = await supabase.from('posts').insert({
+        user_id: currentProfile.id,
+        content_type: 'text',
+        content_text: text.trim(),
+        tenant_id: currentProfile.tenant_id || null
+      }).select('*').single()
+      
+      if (postErr) throw postErr
+      if (onPosted) onPosted(post)
+      onClose()
+    } catch (e) { 
+      console.error('[Echo] create post:', e)
+      setError(e.message) 
+    } finally { 
+      setUploading(false) 
+    }
+  }
+
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[600] bg-black/60 backdrop-blur-xl flex flex-col justify-end md:items-center md:justify-center p-0 md:p-4"
+      onClick={onClose}>
+      
+      <motion.div initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+        className="w-full md:max-w-lg bg-[#060b18]/90 border border-cyan-500/30 md:rounded-3xl rounded-t-3xl p-5 shadow-[0_0_50px_rgba(6,182,212,0.15)] flex flex-col gap-4 relative overflow-hidden"
+        onClick={e => e.stopPropagation()}>
+        
+        {/* Glow Effects */}
+        <div className="absolute -top-20 -left-20 w-40 h-40 bg-cyan-500/20 blur-[60px] rounded-full pointer-events-none" />
+        <div className="absolute -bottom-20 -right-20 w-40 h-40 bg-purple-500/20 blur-[60px] rounded-full pointer-events-none" />
+
+        <div className="flex justify-between items-center relative z-10">
+          <h2 className="text-[17px] font-bold text-white flex items-center gap-2"><Zap className="w-5 h-5 text-cyan-400" /> Drop Echo</h2>
+          <button onClick={onClose} className="p-2 rounded-full bg-white/5 hover:bg-white/10 text-slate-400 transition-colors"><X className="w-5 h-5" /></button>
+        </div>
+
+        <div className="relative z-10">
+          <textarea 
+            autoFocus
+            value={text} 
+            onChange={e => setText(e.target.value)} 
+            placeholder="What's on your mind?" 
+            rows={5}
+            maxLength={280}
+            className="w-full px-4 py-4 rounded-2xl bg-white/5 border border-white/10 text-[#f0f4ff] text-[17px] resize-none outline-none focus:border-cyan-500/50 transition-colors placeholder-slate-500 font-medium" 
+          />
+          <div className={`absolute bottom-3 right-4 text-xs font-bold ${text.length > 260 ? 'text-red-400' : 'text-slate-500'}`}>
+            {text.length}/280
+          </div>
+        </div>
+
+        {error && <p className="text-xs text-red-400 bg-red-500/10 px-3 py-2 rounded-xl relative z-10">{error}</p>}
+
+        <motion.button onClick={submit} disabled={uploading || !text.trim()} whileTap={{ scale: 0.97 }}
+          className="py-3.5 mt-2 rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold text-sm flex items-center justify-center gap-2 disabled:opacity-50 shadow-[0_4px_20px_rgba(6,182,212,0.4)] relative z-10">
+          {uploading ? 'Dropping…' : 'Drop Echo ⚡'}
+        </motion.button>
+      </motion.div>
+    </motion.div>
+  )
+}
+
 export default function HomeFeed({ profile }) {
   const [posts, setPosts] = useState([])
   const [loading, setLoading] = useState(true)
   const [activeStory, setActiveStory] = useState(null)
   const [showStoryViewer, setShowStoryViewer] = useState(false)
+  const [showEchoModal, setShowEchoModal] = useState(false)
   const [hasMore, setHasMore] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
   const [showSuggestions, setShowSuggestions] = useState(false)
   const [suggestions, setSuggestions] = useState([])
   const [followingAll, setFollowingAll] = useState(false)
   const [followedSet, setFollowedSet] = useState(new Set())
+
+  const onEchoPosted = (post) => {
+    setPosts(prev => [{ ...post, like_count: 0, user_liked: false, comment_count: 0 }, ...prev])
+  }
 
   useEffect(() => {
     const load = async () => {
@@ -510,6 +587,22 @@ export default function HomeFeed({ profile }) {
         {showStoryViewer && activeStory && (
           <OwnStoryModal story={activeStory} onClose={() => setShowStoryViewer(false)} onDelete={() => setActiveStory(null)} />
         )}
+      </AnimatePresence>
+
+      {/* Quick-Drop Echo FAB */}
+      <motion.button
+        initial={{ opacity: 0, scale: 0 }}
+        animate={{ opacity: 1, scale: 1 }}
+        whileHover={{ scale: 1.05 }}
+        whileTap={{ scale: 0.95 }}
+        onClick={() => setShowEchoModal(true)}
+        className="fixed bottom-24 md:bottom-10 right-6 z-[450] w-14 h-14 rounded-full bg-gradient-to-br from-cyan-400 to-blue-600 shadow-[0_0_30px_rgba(6,182,212,0.6)] flex items-center justify-center cursor-pointer border border-cyan-200/30"
+      >
+        <Zap className="w-6 h-6 text-white drop-shadow-md" />
+      </motion.button>
+
+      <AnimatePresence>
+        {showEchoModal && <EchoModal currentProfile={profile} onClose={() => setShowEchoModal(false)} onPosted={onEchoPosted} />}
       </AnimatePresence>
     </div>
   )

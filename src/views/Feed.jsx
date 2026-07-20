@@ -220,17 +220,40 @@ export function PostCard({ post, currentProfile }) {
         </div>
       </div>
 
-      {/* Media */}
-      {post.media_type === 'video'
-        ? <video src={post.media_url} controls className="w-full max-h-[520px] object-cover bg-black" />
-        : <img src={post.media_url} alt="" className="w-full max-h-[520px] object-cover" />
-      }
-
-      {/* Caption */}
-      {post.caption && (
-        <div className="px-4 pt-3">
-          <p className="text-[14px] text-slate-100 leading-relaxed"><span className="font-bold text-white">{authorName} </span>{post.caption}</p>
+      {/* Content Rendering */}
+      {post.content_type === 'text' ? (
+        <div 
+          className="w-full min-h-[220px] p-6 flex items-center justify-center relative overflow-hidden"
+          style={{
+            background: 'linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #064e3b 100%)',
+          }}
+        >
+          {/* Subtle noise/mesh overlay */}
+          <div className="absolute inset-0 opacity-30 mix-blend-overlay" 
+            style={{ backgroundImage: 'radial-gradient(circle at 50% 50%, rgba(255,255,255,0.1) 0%, transparent 50%)' }} 
+          />
+          <p className={`relative z-10 text-white font-medium leading-relaxed drop-shadow-md
+            ${post.content_text?.length < 80 ? 'text-2xl text-center' : 'text-lg text-left w-full'}`
+          }>
+            {post.content_text}
+          </p>
         </div>
+      ) : (
+        <>
+          {/* Media */}
+          {post.media_url && (
+            post.media_type === 'video'
+              ? <video src={post.media_url} controls className="w-full max-h-[520px] object-cover bg-black" />
+              : <img src={post.media_url} alt="" className="w-full max-h-[520px] object-cover" />
+          )}
+
+          {/* Caption */}
+          {post.caption && (
+            <div className="px-4 pt-3">
+              <p className="text-[14px] text-slate-100 leading-relaxed"><span className="font-bold text-white">{authorName} </span>{post.caption}</p>
+            </div>
+          )}
+        </>
       )}
 
       {/* Actions */}
