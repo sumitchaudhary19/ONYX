@@ -67,19 +67,32 @@ export default function SkillForge({ profile, session }) {
 
   const loadListings = async () => {
     setLoading(true)
-    let query = supabase.from('forge_listings')
-      .select('*, owner:owner_id(id,first_name,last_name,avatar_url,username,forge_rating_avg,total_gigs_completed,top_hustler)')
-      .neq('status', 'completed')
-      .order('created_at', { ascending: false })
+    try {
+      let query = supabase.from('forge_listings')
+        .select('*, owner:owner_id(id,first_name,last_name,avatar_url,username,forge_rating_avg,total_gigs_completed,top_hustler)')
+        .neq('status', 'completed')
+        .order('created_at', { ascending: false })
 
-    if (profile?.tenant_id) {
-      query = query.eq('tenant_id', profile.tenant_id)
-    } else {
-      query = query.is('tenant_id', null)
+      // Try tenant filtering — if column doesn't exist, fall back to unfiltered
+      if (profile?.tenant_id) {
+        query = query.eq('tenant_id', profile.tenant_id)
+      }
+
+      const { data, error } = await query
+      if (error) {
+        console.warn('[SkillForge] Query failed, retrying without tenant filter:', error.message)
+        // Fallback: fetch without tenant_id filter
+        const { data: fallback } = await supabase.from('forge_listings')
+          .select('*, owner:owner_id(id,first_name,last_name,avatar_url,username)')
+          .neq('status', 'completed')
+          .order('created_at', { ascending: false })
+        if (fallback) setListings(fallback)
+      } else {
+        setListings(data || [])
+      }
+    } catch (err) {
+      console.error('[SkillForge] loadListings error:', err)
     }
-
-    const { data } = await query
-    if (data) setListings(data)
     setLoading(false)
   }
 
@@ -656,9 +669,8 @@ function CreateForgeModal({ profile, onClose, onCreated }) {
     if (!isValid) return
     setSubmitting(true)
     try {
-      await supabase.from('forge_listings').insert({
+      const payload = {
         owner_id: profile.id,
-        tenant_id: profile.tenant_id || null,
         listing_type: form.listing_type,
         title: form.title.trim(),
         description: form.description.trim(),
@@ -667,10 +679,26 @@ function CreateForgeModal({ profile, onClose, onCreated }) {
         barter_offer_details: form.compensation_type === 'barter' ? form.barter_offer_details.trim() || null : null,
         startup_stage: isStartup ? form.startup_stage : null,
         stealth_mode: isStartup ? form.stealth_mode : false,
-      })
+      }
+
+      // Try with tenant_id first
+      if (profile.tenant_id) payload.tenant_id = profile.tenant_id
+      const { error } = await supabase.from('forge_listings').insert(payload)
+
+      if (error) {
+        // If tenant_id column doesn't exist, retry without it
+        if (error.code === '42703' && error.message?.includes('tenant_id')) {
+          delete payload.tenant_id
+          const { error: retryErr } = await supabase.from('forge_listings').insert(payload)
+          if (retryErr) throw retryErr
+        } else {
+          throw error
+        }
+      }
+
       onCreated()
     } catch (e) {
-      alert('Failed: ' + e.message)
+      alert('Failed: ' + (e.message || 'Unknown error'))
     }
     setSubmitting(false)
   }
