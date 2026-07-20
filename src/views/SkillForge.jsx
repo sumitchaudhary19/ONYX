@@ -73,20 +73,9 @@ export default function SkillForge({ profile, session }) {
         .neq('status', 'completed')
         .order('created_at', { ascending: false })
 
-      // Try tenant filtering — if column doesn't exist, fall back to unfiltered
-      if (profile?.tenant_id) {
-        query = query.eq('tenant_id', profile.tenant_id)
-      }
-
       const { data, error } = await query
       if (error) {
-        console.warn('[SkillForge] Query failed, retrying without tenant filter:', error.message)
-        // Fallback: fetch without tenant_id filter
-        const { data: fallback } = await supabase.from('forge_listings')
-          .select('*, owner:owner_id(id,first_name,last_name,avatar_url,username)')
-          .neq('status', 'completed')
-          .order('created_at', { ascending: false })
-        if (fallback) setListings(fallback)
+        console.warn('[SkillForge] Query failed:', error.message)
       } else {
         setListings(data || [])
       }
@@ -681,19 +670,10 @@ function CreateForgeModal({ profile, onClose, onCreated }) {
         stealth_mode: isStartup ? form.stealth_mode : false,
       }
 
-      // Try with tenant_id first
-      if (profile.tenant_id) payload.tenant_id = profile.tenant_id
       const { error } = await supabase.from('forge_listings').insert(payload)
 
       if (error) {
-        // If tenant_id column doesn't exist, retry without it
-        if (error.code === '42703' && error.message?.includes('tenant_id')) {
-          delete payload.tenant_id
-          const { error: retryErr } = await supabase.from('forge_listings').insert(payload)
-          if (retryErr) throw retryErr
-        } else {
-          throw error
-        }
+        throw error
       }
 
       onCreated()
