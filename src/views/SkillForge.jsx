@@ -525,7 +525,7 @@ function ProposeSheet({ listing, profile, onClose, showToast }) {
       }
 
       // Send formatted DM
-      const content = `\u26A1 Skill-Forge Proposal\n\nListing: ${listing.title}\nFrom: @${profile.username}\n\n${msg.trim()}\n\n\u2014 View profile: /user/${profile.id}`
+      const content = `\u26A1 Skill-Forge Proposal\n\nListing: ${listing.title}\nFrom: @${profile.username}\n\n${msg.trim()}`
       await supabase.from('messages').insert({
         sender_id: profile.id, receiver_id: ownerId, content
       })
@@ -594,7 +594,7 @@ function PitchSheet({ listing, profile, onClose, showToast }) {
         return
       }
 
-      const content = `\u{1F680} Skill-Forge Co-Founder Pitch\n\nStartup: ${listing.stealth_mode ? '[Stealth]' : listing.title}\nFrom: @${profile.username}\n\nMini-Pitch:\n${pitch.trim()}\n\n\u2014 View profile: /user/${profile.id}`
+      const content = `\u{1F680} Skill-Forge Co-Founder Pitch\n\nStartup: ${listing.stealth_mode ? '[Stealth]' : listing.title}\nFrom: @${profile.username}\n\nMini-Pitch:\n${pitch.trim()}`
       await supabase.from('messages').insert({
         sender_id: profile.id, receiver_id: ownerId, content
       })
