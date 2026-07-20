@@ -270,9 +270,9 @@ function GigCard({ listing, profile, onPropose, onComplete }) {
       </div>
 
       {/* Description */}
-      {listing.description && (
-        <p className="text-[12px] text-slate-400 leading-relaxed line-clamp-3">{listing.description}</p>
-      )}
+      <p className="text-[12px] text-slate-400 leading-relaxed line-clamp-3">
+        {listing?.description || "No description provided."}
+      </p>
 
       {/* Compensation tag */}
       <div className="flex items-center gap-2 flex-wrap">
@@ -368,20 +368,18 @@ function StartupCard({ listing, profile, onPitch, onComplete }) {
       </div>
 
       {/* Description (blurred if stealth) */}
-      {listing.description && (
-        <div className={`relative ${isStealth ? 'select-none' : ''}`}>
-          <p className={`text-[12px] text-slate-400 leading-relaxed line-clamp-3 ${isStealth ? 'blur-[6px]' : ''}`}>
-            {listing.description}
-          </p>
-          {isStealth && (
-            <div className="absolute inset-0 flex items-center justify-center">
-              <span className="px-3 py-1 rounded-full bg-purple-500/20 border border-purple-500/30 text-[10px] font-bold text-purple-300">
-                {"\u{1F512}"} Stealth Mode
-              </span>
-            </div>
-          )}
-        </div>
-      )}
+      <div className={`relative ${isStealth ? 'select-none' : ''}`}>
+        <p className={`text-[12px] text-slate-400 leading-relaxed line-clamp-3 ${isStealth ? 'blur-[6px]' : ''}`}>
+          {listing?.description || "No description provided."}
+        </p>
+        {isStealth && (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <span className="px-3 py-1 rounded-full bg-purple-500/20 border border-purple-500/30 text-[10px] font-bold text-purple-300">
+              {"\u{1F512}"} Stealth Mode
+            </span>
+          </div>
+        )}
+      </div>
 
       {/* Compensation */}
       <div className="flex items-center gap-2">
@@ -652,15 +650,17 @@ function CreateForgeModal({ profile, onClose, onCreated }) {
   const [submitting, setSubmitting] = useState(false)
   const isStartup = form.listing_type === 'startup_cofounder'
 
+  const isValid = form.title.trim().length > 0 && form.description.trim().length >= 20;
+
   const handleSubmit = async () => {
-    if (!form.title.trim()) return
+    if (!isValid) return
     setSubmitting(true)
     try {
       await supabase.from('forge_listings').insert({
         owner_id: profile.id,
         listing_type: form.listing_type,
         title: form.title.trim(),
-        description: form.description.trim() || null,
+        description: form.description.trim(),
         required_skill: form.required_skill,
         compensation_type: isStartup ? 'equity' : form.compensation_type,
         barter_offer_details: form.compensation_type === 'barter' ? form.barter_offer_details.trim() || null : null,
@@ -696,14 +696,20 @@ function CreateForgeModal({ profile, onClose, onCreated }) {
             ))}
           </div>
 
-          <input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
-            placeholder={isStartup ? 'Startup name / concept' : 'What do you need? (e.g., React Developer)'}
-            className="w-full px-4 py-3 rounded-xl bg-white/[0.04] border border-white/[0.08] text-sm text-white placeholder-slate-600 outline-none focus:border-yellow-500/40 transition-colors" />
+          <div>
+            <input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
+              placeholder={isStartup ? 'Startup name / concept' : 'What do you need? (e.g., React Developer)'}
+              className={`w-full px-4 py-3 rounded-xl bg-white/[0.04] border ${form.title.trim().length === 0 ? 'border-red-500/50' : 'border-white/[0.08]'} text-sm text-white placeholder-slate-600 outline-none focus:border-yellow-500/40 transition-colors`} />
+            {form.title.trim().length === 0 && <p className="text-[10px] text-red-400 mt-1 ml-1">Title is required</p>}
+          </div>
 
-          <textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
-            placeholder={isStartup ? 'Describe your startup idea / vision...' : 'Describe what you need / are offering...'}
-            rows={3}
-            className="w-full px-4 py-3 rounded-xl bg-white/[0.04] border border-white/[0.08] text-sm text-white placeholder-slate-600 outline-none resize-none focus:border-yellow-500/40 transition-colors" />
+          <div>
+            <textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+              placeholder={isStartup ? 'Describe your startup idea / vision (min 20 chars)...' : 'Describe what you need / are offering (min 20 chars)...'}
+              rows={3}
+              className={`w-full px-4 py-3 rounded-xl bg-white/[0.04] border ${form.description.trim().length < 20 ? 'border-red-500/50' : 'border-white/[0.08]'} text-sm text-white placeholder-slate-600 outline-none resize-none focus:border-yellow-500/40 transition-colors`} />
+            {form.description.trim().length < 20 && <p className="text-[10px] text-red-400 mt-1 ml-1">Description must be at least 20 characters</p>}
+          </div>
 
           <select value={form.required_skill} onChange={e => setForm(f => ({ ...f, required_skill: e.target.value }))}
             className="w-full px-4 py-3 rounded-xl bg-white/[0.04] border border-white/[0.08] text-sm text-white outline-none appearance-none">
@@ -754,11 +760,11 @@ function CreateForgeModal({ profile, onClose, onCreated }) {
             </>
           )}
 
-          <motion.button whileTap={{ scale: 0.97 }} onClick={handleSubmit} disabled={!form.title.trim() || submitting}
+          <motion.button whileTap={{ scale: 0.97 }} onClick={handleSubmit} disabled={!isValid || submitting}
             className={`w-full py-3.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all
-              ${form.title.trim()
+              ${isValid
                 ? 'bg-gradient-to-r from-yellow-500 to-amber-600 text-white shadow-[0_0_20px_rgba(251,191,36,0.3)]'
-                : 'bg-white/[0.04] text-slate-600 cursor-not-allowed'}`}>
+                : 'bg-white/[0.04] text-slate-600 cursor-not-allowed opacity-50'}`}>
             {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Publish Listing'}
           </motion.button>
         </div>
