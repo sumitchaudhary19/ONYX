@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { User, Lock, ChevronRight, ChevronLeft, Calendar, Camera, X, Check, XCircle, Loader2, Sparkles, ScanLine, ShieldCheck } from 'lucide-react'
+import { User, Lock, ChevronRight, ChevronLeft, Calendar, Camera, X, Check, XCircle, Loader2, Sparkles, ScanLine, ShieldCheck, Mail } from 'lucide-react'
 import { supabase } from '../supabaseClient'
 import ComingSoonToast from './ComingSoonToast'
 import { parseMnitEmail, calcBtechYear } from '../utils/campusUtils'
