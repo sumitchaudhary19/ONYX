@@ -52,8 +52,8 @@ export default function SkillForge({ profile, session }) {
   const [showCreate, setShowCreate] = useState(false)
   const [proposeTarget, setProposeTarget] = useState(null) // gig proposal
   const [pitchTarget, setPitchTarget] = useState(null)     // startup pitch
-  const [reviewTarget, setReviewTarget] = useState(null)
   const [toast, setToast] = useState(null)
+  const [editTarget, setEditTarget] = useState(null)
 
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 3000) }
 
@@ -93,6 +93,23 @@ export default function SkillForge({ profile, session }) {
     setListings(prev => prev.filter(l => l.id !== listing.id))
     setReviewTarget(listing)
     showToast('Marked as completed!')
+  }
+
+  const handleDelete = async (id) => {
+    try {
+      const { error } = await supabase.from('forge_listings').delete().eq('id', id)
+      if (error) throw error
+      setListings(prev => prev.filter(l => l.id !== id))
+      showToast('Listing deleted')
+    } catch (err) {
+      console.error('[SkillForge] delete error:', err)
+      showToast('Failed to delete listing')
+    }
+  }
+
+  const handleEdit = (listing) => {
+    setEditTarget(listing)
+    setShowCreate(true)
   }
 
   const filtered = listings.filter(l => {
@@ -174,10 +191,14 @@ export default function SkillForge({ profile, session }) {
                 activeType === 'startup_cofounder'
                   ? <StartupCard key={listing.id} listing={listing} profile={profile}
                       onPitch={() => setPitchTarget(listing)}
-                      onComplete={() => handleComplete(listing)} />
+                      onComplete={() => handleComplete(listing)}
+                      onEdit={() => handleEdit(listing)}
+                      onDelete={() => handleDelete(listing.id)} />
                   : <GigCard key={listing.id} listing={listing} profile={profile}
                       onPropose={() => setProposeTarget(listing)}
-                      onComplete={() => handleComplete(listing)} />
+                      onComplete={() => handleComplete(listing)}
+                      onEdit={() => handleEdit(listing)}
+                      onDelete={() => handleDelete(listing.id)} />
               ))}
             </div>
           )}
@@ -196,8 +217,8 @@ export default function SkillForge({ profile, session }) {
       {/* ── Modals ── */}
       <AnimatePresence>
         {showCreate && (
-          <CreateForgeModal profile={profile} onClose={() => setShowCreate(false)}
-            onCreated={() => { setShowCreate(false); loadListings(); showToast('Listing published!') }} />
+          <CreateForgeModal profile={profile} editTarget={editTarget} onClose={() => { setShowCreate(false); setEditTarget(null); }}
+            onCreated={() => { setShowCreate(false); setEditTarget(null); loadListings(); showToast(editTarget ? 'Listing updated!' : 'Listing published!') }} />
         )}
       </AnimatePresence>
 
@@ -247,18 +268,19 @@ function HustlerBadge() {
   )
 }
 
-function GigCard({ listing, profile, onPropose, onComplete }) {
+function GigCard({ listing, profile, onPropose, onComplete, onEdit, onDelete }) {
   const isMine = listing.owner_id === profile.id
   const owner = listing.owner
   const isBarter = listing.compensation_type === 'barter'
   const isEquity = listing.compensation_type === 'equity'
+  const [menuOpen, setMenuOpen] = useState(false)
 
   return (
     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-      className="rounded-3xl bg-white/[0.03] border border-white/[0.06] backdrop-blur-sm p-4 flex flex-col gap-3 hover:border-white/[0.12] transition-all">
+      className="rounded-3xl bg-white/[0.03] border border-white/[0.06] backdrop-blur-sm p-4 flex flex-col gap-3 hover:border-white/[0.12] transition-all relative">
       {/* Header row */}
       <div className="flex items-start justify-between">
-        <div className="flex-1 min-w-0">
+        <div className="flex-1 min-w-0 pr-6">
           <h3 className="text-[14px] font-bold text-white leading-tight mb-1">{listing.title}</h3>
           <div className="flex items-center gap-2 flex-wrap">
             {listing.required_skill && (
@@ -270,6 +292,23 @@ function GigCard({ listing, profile, onPropose, onComplete }) {
           </div>
         </div>
       </div>
+
+      {isMine && (
+        <div className="absolute top-4 right-3 z-10">
+          <button onClick={(e) => { e.stopPropagation(); setMenuOpen(!menuOpen); }} className="p-1.5 text-slate-400 hover:text-white bg-black/20 rounded-full">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg>
+          </button>
+          <AnimatePresence>
+            {menuOpen && (
+              <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
+                className="absolute right-0 mt-1 w-36 bg-[#1e293b] border border-white/10 rounded-xl shadow-xl overflow-hidden py-1 z-50">
+                <button onClick={() => { setMenuOpen(false); onEdit(); }} className="w-full text-left px-4 py-2 text-xs font-semibold text-white hover:bg-white/10">Edit Listing</button>
+                <button onClick={() => { setMenuOpen(false); onDelete(); }} className="w-full text-left px-4 py-2 text-xs font-semibold text-red-400 hover:bg-white/10">Delete Listing</button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      )}
 
       {/* Description */}
       <p className="text-[12px] text-slate-400 leading-relaxed line-clamp-3">
@@ -338,22 +377,23 @@ function GigCard({ listing, profile, onPropose, onComplete }) {
 // ══════════════════════════════════════════════════════════════
 // STARTUP / CO-FOUNDER CARD
 // ══════════════════════════════════════════════════════════════
-function StartupCard({ listing, profile, onPitch, onComplete }) {
+function StartupCard({ listing, profile, onPitch, onComplete, onEdit, onDelete }) {
   const isMine = listing.owner_id === profile.id
   const owner = listing.owner
   const stage = STAGE_MAP[listing.startup_stage] || STAGE_MAP.idea
   const isStealth = listing.stealth_mode
+  const [menuOpen, setMenuOpen] = useState(false)
 
   return (
     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-      className={`rounded-3xl backdrop-blur-sm p-4 flex flex-col gap-3 transition-all border
+      className={`rounded-3xl backdrop-blur-sm p-4 flex flex-col gap-3 transition-all border relative
         ${isStealth
           ? 'bg-gradient-to-br from-white/[0.02] to-purple-900/[0.05] border-purple-500/15 hover:border-purple-500/30'
           : 'bg-white/[0.03] border-white/[0.06] hover:border-white/[0.12]'
         }`}>
       {/* Header */}
       <div className="flex items-start justify-between">
-        <div className="flex-1 min-w-0">
+        <div className="flex-1 min-w-0 pr-6">
           <div className="flex items-center gap-2 mb-1.5">
             <h3 className="text-[14px] font-bold text-white leading-tight">
               {isStealth ? `Stealth Startup in ${listing.required_skill || 'Tech'}` : listing.title}
@@ -368,6 +408,23 @@ function StartupCard({ listing, profile, onPitch, onComplete }) {
           </span>
         </div>
       </div>
+
+      {isMine && (
+        <div className="absolute top-4 right-3 z-10">
+          <button onClick={(e) => { e.stopPropagation(); setMenuOpen(!menuOpen); }} className="p-1.5 text-slate-400 hover:text-white bg-black/20 rounded-full">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg>
+          </button>
+          <AnimatePresence>
+            {menuOpen && (
+              <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
+                className="absolute right-0 mt-1 w-36 bg-[#1e293b] border border-white/10 rounded-xl shadow-xl overflow-hidden py-1 z-50">
+                <button onClick={() => { setMenuOpen(false); onEdit(); }} className="w-full text-left px-4 py-2 text-xs font-semibold text-white hover:bg-white/10">Edit Listing</button>
+                <button onClick={() => { setMenuOpen(false); onDelete(); }} className="w-full text-left px-4 py-2 text-xs font-semibold text-red-400 hover:bg-white/10">Delete Listing</button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      )}
 
       {/* Description (blurred if stealth) */}
       <div className={`relative ${isStealth ? 'select-none' : ''}`}>
@@ -452,10 +509,15 @@ function ProposeSheet({ listing, profile, onClose, showToast }) {
 
       if (!fr || fr.length === 0) {
         // Auto-send friend request
-        await supabase.from('friend_requests').upsert({
-          sender_id: profile.id, receiver_id: ownerId, status: 'pending'
-        }, { onConflict: 'sender_id,receiver_id' })
-        showToast('Friend request sent! They can view your proposal once accepted.')
+        const payload = { sender_id: profile.id, receiver_id: ownerId, status: 'pending' }
+        const { error: insertErr } = await supabase.from('friend_requests').insert(payload)
+        
+        if (insertErr) {
+          console.error('[SkillForge] Propose connection insert failed:', insertErr)
+          showToast('Failed to send connection request. Check permissions.')
+        } else {
+          showToast('Friend request sent! They can view your proposal once accepted.')
+        }
         onClose()
         setSending(false)
         return
@@ -517,10 +579,15 @@ function PitchSheet({ listing, profile, onClose, showToast }) {
         .eq('status', 'accepted').limit(1)
 
       if (!fr || fr.length === 0) {
-        await supabase.from('friend_requests').upsert({
-          sender_id: profile.id, receiver_id: ownerId, status: 'pending'
-        }, { onConflict: 'sender_id,receiver_id' })
-        showToast('Friend request sent! Pitch will be visible once accepted.')
+        const payload = { sender_id: profile.id, receiver_id: ownerId, status: 'pending' }
+        const { error: insertErr } = await supabase.from('friend_requests').insert(payload)
+        
+        if (insertErr) {
+          console.error('[SkillForge] Pitch connection insert failed:', insertErr)
+          showToast('Failed to send connection request. Check permissions.')
+        } else {
+          showToast('Friend request sent! Pitch will be visible once accepted.')
+        }
         onClose()
         setSending(false)
         return
@@ -642,12 +709,16 @@ function ReviewModal({ listing, profile, onClose, showToast }) {
 // ══════════════════════════════════════════════════════════════
 // CREATE FORGE LISTING
 // ══════════════════════════════════════════════════════════════
-function CreateForgeModal({ profile, onClose, onCreated }) {
+function CreateForgeModal({ profile, editTarget, onClose, onCreated }) {
   const [form, setForm] = useState({
-    listing_type: 'looking_for_skill',
-    title: '', description: '', required_skill: 'Web Dev',
-    compensation_type: 'cash', barter_offer_details: '',
-    startup_stage: 'idea', stealth_mode: false,
+    listing_type: editTarget?.listing_type || 'looking_for_skill',
+    title: editTarget?.title || '', 
+    description: editTarget?.description || '', 
+    required_skill: editTarget?.required_skill || 'Web Dev',
+    compensation_type: editTarget?.compensation_type || 'cash', 
+    barter_offer_details: editTarget?.barter_offer_details || '',
+    startup_stage: editTarget?.startup_stage || 'idea', 
+    stealth_mode: editTarget?.stealth_mode || false,
   })
   const [submitting, setSubmitting] = useState(false)
   const isStartup = form.listing_type === 'startup_cofounder'
@@ -670,10 +741,12 @@ function CreateForgeModal({ profile, onClose, onCreated }) {
         stealth_mode: isStartup ? form.stealth_mode : false,
       }
 
-      const { error } = await supabase.from('forge_listings').insert(payload)
-
-      if (error) {
-        throw error
+      if (editTarget) {
+        const { error } = await supabase.from('forge_listings').update(payload).eq('id', editTarget.id)
+        if (error) throw error
+      } else {
+        const { error } = await supabase.from('forge_listings').insert(payload)
+        if (error) throw error
       }
 
       onCreated()
@@ -691,7 +764,7 @@ function CreateForgeModal({ profile, onClose, onCreated }) {
         onClick={e => e.stopPropagation()}
         className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-t-3xl bg-[#0a0f1e] border-t border-white/10 p-6">
         <div className="w-10 h-1 rounded-full bg-white/20 mx-auto mb-5" />
-        <h3 className="text-sm font-bold text-white mb-4 flex items-center gap-2"><Zap className="w-4 h-4 text-yellow-400" /> New Listing</h3>
+        <h3 className="text-sm font-bold text-white mb-4 flex items-center gap-2"><Zap className="w-4 h-4 text-yellow-400" /> {editTarget ? 'Edit Listing' : 'New Listing'}</h3>
 
         <div className="flex flex-col gap-3.5">
           {/* Type selector */}
@@ -774,7 +847,7 @@ function CreateForgeModal({ profile, onClose, onCreated }) {
               ${isValid
                 ? 'bg-gradient-to-r from-yellow-500 to-amber-600 text-white shadow-[0_0_20px_rgba(251,191,36,0.3)]'
                 : 'bg-white/[0.04] text-slate-600 cursor-not-allowed opacity-50'}`}>
-            {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Publish Listing'}
+            {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : (editTarget ? 'Save Changes' : 'Publish Listing')}
           </motion.button>
         </div>
       </motion.div>
