@@ -409,6 +409,9 @@ export default function SettingsView({ profile, session }) {
       <div className="text-center mt-8 pb-8 transition-colors duration-300">
         <p className="text-[12px] text-slate-500 dark:text-slate-400">MNIT Chat v0.0.1 Beta</p>
         <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">Made for MNIT Students</p>
+        <p className="text-gray-500 text-xs text-center mt-8 px-4">
+          ONYX is an independent student-run initiative and is not officially affiliated with or endorsed by the MNIT Administration.
+        </p>
       </div>
 
       <AnimatePresence>
