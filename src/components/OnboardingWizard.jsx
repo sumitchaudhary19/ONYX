@@ -1183,10 +1183,6 @@ export default function OnboardingWizard({ onComplete, session }) {
         profileData.tenant_id = tenant
       }
 
-      if (authMode === 'guest') {
-        profileData.is_guest = true
-      }
-
       const { error: profileError } = await supabase.from('profiles').upsert(profileData)
       if (profileError) throw profileError
 
