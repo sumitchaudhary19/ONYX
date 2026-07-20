@@ -467,7 +467,7 @@ function StepAuthSelection({ onGoogle, onGuest, loading, tenant, setTenant, onTe
     setGuestError('')
 
     try {
-      const { error: loginError } = await supabase.auth.signInWithPassword({
+      const { data: signInData, error: loginError } = await supabase.auth.signInWithPassword({
         email: email,
         password: guestPassword,
       })
@@ -480,7 +480,19 @@ function StepAuthSelection({ onGoogle, onGuest, loading, tenant, setTenant, onTe
         setGuestLoading(false)
         return
       }
-      window.location.href = '/chat'
+      // Check if the user already has a profile
+      const userId = signInData?.user?.id
+      if (userId) {
+        const { data: existingProfile } = await supabase.from('profiles').select('id,username').eq('id', userId).maybeSingle()
+        if (existingProfile?.username) {
+          // Existing guest with completed profile — go straight to chat
+          window.location.href = '/chat'
+          return
+        }
+      }
+      // New guest or incomplete profile — auth state change in App.jsx will redirect to /onboarding
+      // The onAuthStateChange listener will pick this up automatically
+      setGuestLoading(false)
     } catch (err) {
       console.error('[Guest Auth]', err)
       setGuestError(err.message || 'Something went wrong')
@@ -1083,7 +1095,14 @@ export default function OnboardingWizard({ onComplete, session }) {
   }, [formData.username, tenant])
 
   const goNext = () => { setDirection(1); setStep(s => s + 1) }
-  const goBack = () => { setDirection(-1); setStep(s => s - 1) }
+  const goBack = () => {
+    setDirection(-1)
+    setStep(s => {
+      // If going back from step 4 and we're not a Google/MNIT user, skip step 3 (SmartDecrypt)
+      if (s === 4 && authMode !== 'google') return 2
+      return s - 1
+    })
+  }
 
   // ── Google OAuth ──
   const handleGoogle = async () => {
@@ -1101,9 +1120,10 @@ export default function OnboardingWizard({ onComplete, session }) {
 
   // ── Guest Selection ──
   const handleGuest = async () => {
-    // We now allow unlimited guest accounts or direct login via the Guest Login UI
+    // Skip step 3 (SmartDecrypt) — it only applies to MNIT Google users
     setAuthMode('guest')
-    goNext()
+    setDirection(1)
+    setStep(4) // Jump directly to StepName
   }
 
   // ── Final Submit ──
