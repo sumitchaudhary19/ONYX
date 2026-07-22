@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence, useMotionValue, useTransform } from 'framer-motion'
 import {
   ChevronRight, X, PenSquare, ShoppingBag,
-  BookOpen, GraduationCap, Ghost, Camera, Users, Aperture, UtensilsCrossed, School, Crosshair, Zap, Orbit
+  BookOpen, GraduationCap, Ghost, Camera, Users, Aperture, UtensilsCrossed, School, Crosshair, Zap, Orbit, Shield
 } from 'lucide-react'
 
 const SIDEBAR_ITEMS = [
@@ -14,6 +14,7 @@ const SIDEBAR_ITEMS = [
   { id: 'myhub',    label: 'My Hub',        icon: School,       color: '#f472b6', glow: 'rgba(244,114,182,0.5)' },
   { id: 'radar',    label: 'Campus Radar',  icon: Crosshair,    color: '#f87171', glow: 'rgba(248,113,113,0.5)' },
   { id: 'forge',    label: 'Skill-Forge',   icon: Zap,          color: '#fbbf24', glow: 'rgba(251,191,36,0.5)'  },
+  { id: 'clubs',    label: 'Clubs & Nexus', icon: Shield,       color: '#f59e0b', glow: 'rgba(245,158,11,0.5)'  },
   { id: 'shop',     label: 'MNIT Shop',     icon: ShoppingBag,      color: '#60a5fa', glow: 'rgba(96,165,250,0.5)'  },
   { id: 'mess',     label: 'Mess Radar',    icon: UtensilsCrossed,  color: '#fb923c', glow: 'rgba(251,146,60,0.5)'  },
   { id: 'vault',    label: 'Vault',         icon: BookOpen,         color: '#c084fc', glow: 'rgba(192,132,252,0.5)' },
@@ -56,6 +57,7 @@ export default function DraggableSidebar({ onNavigate, onPost, onSnap, onStory, 
       case 'radar':
       case 'forge':
       case 'pulse':
+      case 'clubs':
         onNavigate?.(item.id); break
       default: break
     }
