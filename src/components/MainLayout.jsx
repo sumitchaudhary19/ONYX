@@ -2,7 +2,7 @@ import { useEffect, useState, useRef, Component } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   MessageCircle, Search, Bell, User,
-  Users, Settings, ImagePlus, Aperture, Sparkles, BookOpen, GraduationCap, Ghost
+  Users, Settings, ImagePlus, Aperture, Sparkles, BookOpen, GraduationCap, Ghost, Shield
 } from 'lucide-react'
 import Chats from '../views/Chats'
 import SearchView from '../views/Search'
@@ -397,6 +397,29 @@ export default function MainLayout({ profile, session }) {
             </motion.div>
           </AnimatePresence>
         </div>
+
+        {/* Floating Clubs Nexus Tab (Home Screen Only) */}
+        <AnimatePresence>
+          {activeTab === 'home' && (
+            <motion.button
+              initial={{ y: 100, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 100, opacity: 0 }}
+              transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => handleTabChange('clubs')}
+              className="absolute bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2.5 bg-gradient-to-r from-amber-500 to-orange-600 text-white px-6 py-3.5 rounded-full shadow-[0_12px_40px_rgba(245,158,11,0.5)] border border-white/20 overflow-hidden group"
+            >
+              <div className="absolute inset-0 bg-white/20 translate-y-[100%] group-hover:translate-y-0 transition-transform duration-300 ease-out" />
+              <Shield className="w-5 h-5 drop-shadow-md relative z-10" />
+              <span className="font-bold text-sm tracking-wide relative z-10 drop-shadow-md">Clubs & Nexus</span>
+              
+              {/* Pulsing ring */}
+              <div className="absolute inset-0 rounded-full border-2 border-white/30 animate-[ping_2s_cubic-bezier(0,0,0.2,1)_infinite] pointer-events-none" />
+            </motion.button>
+          )}
+        </AnimatePresence>
       </main>
 
       {/* ═══ DRAGGABLE SIDEBAR (replaces ActionHubFAB + ShopFAB) ═══ */}
