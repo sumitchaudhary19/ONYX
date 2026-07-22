@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../supabaseClient';
 import { 
   ArrowLeft, Lock, Send, Crown, Shield, Calendar, MapPin, Megaphone, 
-  Users, MessageCircle, Star, Zap, Check, X, Loader2, Plus, Palette 
+  Users, MessageCircle, Star, Zap, Check, X, Loader2, Plus, Palette, Key 
 } from 'lucide-react';
 
 const CATEGORIES = [
@@ -62,6 +62,11 @@ export default function ClubsNexus({ profile, session, onTabChange }) {
               club={selectedClub} 
               profile={profile} 
               onBack={() => setSelectedClub(null)} 
+              onAdminClaimed={(admin_id) => {
+                const updated = { ...selectedClub, admin_id };
+                setSelectedClub(updated);
+                setClubs(prev => prev.map(c => c.id === updated.id ? updated : c));
+              }}
             />
           </motion.div>
         ) : (
@@ -155,7 +160,7 @@ function ClubCapsule({ club, category, onSelect }) {
   );
 }
 
-function ClubView({ club, profile, onBack }) {
+function ClubView({ club, profile, onBack, onAdminClaimed }) {
   const [membership, setMembership] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -220,7 +225,9 @@ function ClubView({ club, profile, onBack }) {
           <LockedScreen 
             club={club} 
             membership={membership} 
-            onRequestJoin={handleRequestJoin} 
+            onRequestJoin={handleRequestJoin}
+            profile={profile}
+            onAdminClaimed={onAdminClaimed}
           />
         )}
       </div>
@@ -228,13 +235,43 @@ function ClubView({ club, profile, onBack }) {
   );
 }
 
-function LockedScreen({ club, membership, onRequestJoin }) {
+function LockedScreen({ club, membership, onRequestJoin, profile, onAdminClaimed }) {
+  const [showClaimModal, setShowClaimModal] = useState(false);
+  const [passcode, setPasscode] = useState('');
+  const [claimLoading, setClaimLoading] = useState(false);
+  const [claimAttempts, setClaimAttempts] = useState(0);
+  const [claimError, setClaimError] = useState('');
+
+  const handleClaimAdmin = async () => {
+    if (!passcode.trim() || claimAttempts >= 3) return;
+    setClaimLoading(true);
+    setClaimError('');
+    
+    const { data, error } = await supabase.rpc('verify_genesis_admin', {
+      p_club_id: club.id,
+      p_passcode: passcode,
+      p_user_id: profile.id
+    });
+
+    if (error) {
+      setClaimError(error.message);
+      setClaimAttempts(prev => prev + 1);
+    } else if (data === true) {
+      setShowClaimModal(false);
+      onAdminClaimed(profile.id);
+    } else {
+      setClaimError('Invalid Genesis Passcode.');
+      setClaimAttempts(prev => prev + 1);
+    }
+    setClaimLoading(false);
+  };
+
   return (
-    <div className="w-full h-full flex flex-col items-center justify-center p-6">
+    <div className="w-full h-full flex flex-col items-center justify-center p-6 relative">
       <motion.div 
         initial={{ scale: 0.9, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
-        className="max-w-sm w-full bg-white/[0.03] border border-white/10 backdrop-blur-xl rounded-3xl p-8 flex flex-col items-center text-center shadow-2xl"
+        className="max-w-sm w-full bg-white/[0.03] border border-white/10 backdrop-blur-xl rounded-3xl p-8 flex flex-col items-center text-center shadow-2xl z-10"
       >
         <div className="w-20 h-20 bg-black/50 rounded-full flex items-center justify-center border border-white/10 mb-6 relative">
           <div className="text-4xl">{club.avatar_emoji}</div>
@@ -269,7 +306,73 @@ function LockedScreen({ club, membership, onRequestJoin }) {
             Request to Join
           </button>
         )}
+
+        {!club.admin_id && (
+          <button 
+            onClick={() => setShowClaimModal(true)}
+            className="mt-6 w-full py-3 px-6 rounded-xl font-bold bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-400 hover:to-pink-400 text-white shadow-[0_0_20px_rgba(168,85,247,0.4)] transition-all transform hover:scale-105 active:scale-95 flex items-center justify-center gap-2 border border-white/20"
+          >
+            Claim Admin Rights 👑
+          </button>
+        )}
       </motion.div>
+
+      {/* Claim Modal */}
+      <AnimatePresence>
+        {showClaimModal && (
+          <motion.div 
+            initial={{ opacity: 0 }} 
+            animate={{ opacity: 1 }} 
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+          >
+            <motion.div 
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 20 }}
+              className="bg-[#0f172a] border border-white/10 rounded-3xl p-6 w-full max-w-sm shadow-2xl relative"
+            >
+              <button 
+                onClick={() => setShowClaimModal(false)}
+                className="absolute top-4 right-4 p-2 bg-white/5 hover:bg-white/10 rounded-full transition-colors"
+              >
+                <X className="w-5 h-5 text-white/70" />
+              </button>
+              
+              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center mb-4 border border-white/20 shadow-[0_0_15px_rgba(168,85,247,0.5)]">
+                <Key className="w-6 h-6 text-white" />
+              </div>
+              
+              <h3 className="text-xl font-bold mb-2">Genesis Admin</h3>
+              <p className="text-sm text-white/60 mb-6">Enter the Pre-Shared Key (PSK) to claim permanent ownership of this club.</p>
+              
+              <input
+                type="text"
+                placeholder="XXX-ONX-XXXX"
+                value={passcode}
+                onChange={e => { setPasscode(e.target.value.toUpperCase()); setClaimError(''); }}
+                disabled={claimAttempts >= 3 || claimLoading}
+                className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-white/30 focus:outline-none focus:border-purple-500 transition-colors font-mono tracking-widest text-center uppercase"
+              />
+              
+              {claimError && (
+                <p className="text-rose-400 text-xs mt-2 text-center font-medium animate-pulse">{claimError}</p>
+              )}
+              {claimAttempts >= 3 && (
+                <p className="text-rose-500 text-xs mt-2 text-center font-bold">Too many failed attempts. Device locked.</p>
+              )}
+              
+              <button
+                onClick={handleClaimAdmin}
+                disabled={!passcode.trim() || claimAttempts >= 3 || claimLoading}
+                className="w-full mt-6 py-3 rounded-xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-all shadow-[0_0_15px_rgba(168,85,247,0.3)]"
+              >
+                {claimLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Verify Key'}
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
