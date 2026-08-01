@@ -3,10 +3,11 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { User, Lock, ChevronRight, ChevronLeft, Calendar, Camera, X, Check, XCircle, Loader2, Sparkles, ScanLine, ShieldCheck, Mail } from 'lucide-react'
 import { supabase } from '../supabaseClient'
 import ComingSoonToast from './ComingSoonToast'
+import ForgotPasswordModal from './ForgotPasswordModal'
 import { parseMnitEmail, calcBtechYear } from '../utils/campusUtils'
 
 // ── Constants ──────────────────────────────────────────────────────────────
-const TENANTS = { C1: 'college_1', C2: 'college_2' }
+
 const BRANCHES = [
   'Architecture and Planning (B.Arch)',
   'Artificial Intelligence & Data Engineering',
@@ -442,296 +443,146 @@ function StepWelcome({ onNext }) {
 }
 
 // ── Step 2: Auth Selection ─────────────────────────────────────────────────
-function StepAuthSelection({ onGoogle, onGuest, loading, tenant, setTenant, onTenantCreate }) {
-  const [showTenantPicker, setShowTenantPicker] = useState(false)
-  const [tenantMode, setTenantMode] = useState('create') // 'create' | 'login'
-  const [tenantUsername, setTenantUsername] = useState('')
-  const [tenantPassword, setTenantPassword] = useState('')
-  const [tenantLoading, setTenantLoading] = useState(false)
-  const [tenantError, setTenantError] = useState('')
-  const [comingSoonMessage, setComingSoonMessage] = useState(null)
+function StepAuthSelection({ onGoogle, onEmailSignup, loading, onForgotPassword }) {
+  const [authTab, setAuthTab] = useState('signup') // 'signup' | 'login'
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [authLoading, setAuthLoading] = useState(false)
+  const [authError, setAuthError] = useState('')
+  
+  const [loginAttempts, setLoginAttempts] = useState(0)
+  const [lockoutUntil, setLockoutUntil] = useState(null)
 
-  // Guest Auth State
-  const [showGuestForm, setShowGuestForm] = useState(false)
-  const [guestMode, setGuestMode] = useState('create') // 'create' | 'login'
-  const [guestEmail, setGuestEmail] = useState('')
-  const [guestPassword, setGuestPassword] = useState('')
-  const [guestLoading, setGuestLoading] = useState(false)
-  const [guestError, setGuestError] = useState('')
+  const handleLogin = async (e) => {
+    e.preventDefault()
+    if (lockoutUntil && Date.now() < lockoutUntil) return
 
-  const handleGuestLogin = async () => {
-    const email = guestEmail.trim().toLowerCase()
-    if (!email.includes('@')) { setGuestError('Please enter a valid email address'); return }
-    if (guestPassword.length < 6) { setGuestError('Password must be at least 6 characters'); return }
-    setGuestLoading(true)
-    setGuestError('')
+    setAuthError('')
+    setAuthLoading(true)
 
     try {
-      const { data: signInData, error: loginError } = await supabase.auth.signInWithPassword({
-        email: email,
-        password: guestPassword,
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
       })
-      if (loginError) {
-        if (loginError.message?.includes('Invalid login')) {
-          setGuestError('Invalid email or password')
+
+      if (error) {
+        const newAttempts = loginAttempts + 1
+        setLoginAttempts(newAttempts)
+        if (newAttempts >= 3) {
+          setLockoutUntil(Date.now() + 15 * 60 * 1000)
+          setAuthError('Too many failed attempts. Try again later.')
         } else {
-          setGuestError(loginError.message)
+          setAuthError('Invalid email or password')
         }
-        setGuestLoading(false)
+        setAuthLoading(false)
         return
       }
-      // Check if the user already has a profile
-      const userId = signInData?.user?.id
+
+      const userId = data?.user?.id
       if (userId) {
-        const { data: existingProfile } = await supabase.from('profiles').select('id,username').eq('id', userId).maybeSingle()
-        if (existingProfile?.username) {
-          // Existing guest with completed profile — go straight to chat
+        const { data: profile } = await supabase.from('profiles').select('id,username').eq('id', userId).maybeSingle()
+        if (profile?.username) {
           window.location.href = '/chat'
           return
         }
       }
-      // New guest or incomplete profile — auth state change in App.jsx will redirect to /onboarding
-      // The onAuthStateChange listener will pick this up automatically
-      setGuestLoading(false)
+      setAuthLoading(false)
     } catch (err) {
-      console.error('[Guest Auth]', err)
-      setGuestError(err.message || 'Something went wrong')
-      setGuestLoading(false)
+      console.error(err)
+      setAuthError('Something went wrong')
+      setAuthLoading(false)
     }
   }
 
-  const handleTenantLogin = async () => {
-    const uname = tenantUsername.trim().toLowerCase().replace(/[^a-z0-9_]/g, '')
-    if (uname.length < 3) { setTenantError('Username must be at least 3 characters'); return }
-    if (tenantPassword.length < 6) { setTenantError('Password must be at least 6 characters'); return }
-    setTenantLoading(true)
-    setTenantError('')
-
-    const syntheticEmail = `${uname}@${tenant.replace(/_/g, '')}.onyxapp.com`
-
-    try {
-      // Login with existing tenant account
-      const { error: loginError } = await supabase.auth.signInWithPassword({
-        email: syntheticEmail,
-        password: tenantPassword,
-      })
-      if (loginError) {
-        if (loginError.message?.includes('Invalid login')) {
-          setTenantError('Invalid username or password')
-        } else {
-          setTenantError(loginError.message)
-        }
-        setTenantLoading(false)
-        return
-      }
-      window.location.href = '/chat'
-    } catch (err) {
-      console.error('[Tenant Auth]', err)
-      setTenantError(err.message || 'Something went wrong')
-      setTenantLoading(false)
-    }
-  }
+  const isLocked = lockoutUntil && Date.now() < lockoutUntil
 
   return (
     <div className="flex flex-col items-center justify-between h-full py-16 px-6 relative">
-      {/* Decoy X button - looks like a broken UI artifact */}
-      <button onClick={() => setComingSoonMessage('Multi-Campus access is arriving soon.')}
-        style={{ position: 'absolute', top: 14, right: 14, width: 22, height: 22, opacity: 0.22,
-          background: 'none', border: 'none', color: '#94a3b8', fontSize: 10, cursor: 'default',
-          fontFamily: 'monospace', letterSpacing: '-1px', lineHeight: 1, zIndex: 10 }}
-        aria-hidden="true">X</button>
-
-      <AnimatePresence>
-        {comingSoonMessage && (
-          <ComingSoonToast 
-            message={comingSoonMessage} 
-            onClose={() => setComingSoonMessage(null)} 
-          />
-        )}
-      </AnimatePresence>
-
-      {/* Tenant badge (only visible when tenant selected) */}
-      {tenant && (
-        <div className="absolute top-3 left-3 px-2 py-0.5 rounded bg-white/[0.04] text-[8px] text-slate-700 font-mono">
-          {tenant.toUpperCase()}
-        </div>
-      )}
-
       <div />
       <OnyxLogo size="lg" />
 
-      {/* ── Tenant Direct Auth Form (shown when C1/C2 is active) ── */}
-      {tenant ? (
-        <div className="w-full max-w-xs flex flex-col gap-3">
-          {/* Create / Login tabs */}
+      <div className="w-full max-w-xs flex flex-col gap-4">
+        <motion.div animate={{ boxShadow: ['0 0 15px rgba(59,130,246,0.2)', '0 0 30px rgba(59,130,246,0.4)', '0 0 15px rgba(59,130,246,0.2)'] }}
+          transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
+          className="rounded-full">
+          <PrimaryButton onClick={onGoogle} disabled={loading} glow="blue" className="!py-3.5">
+            <GoogleIcon /> Sign in with MNIT ID (Google)
+          </PrimaryButton>
+        </motion.div>
+
+        <div className="flex items-center gap-3 my-1 opacity-60">
+          <div className="flex-1 h-px bg-slate-500" />
+          <span className="text-[10px] font-mono text-slate-400 uppercase tracking-widest">or sign in with email</span>
+          <div className="flex-1 h-px bg-slate-500" />
+        </div>
+
+        <div className="w-full flex flex-col gap-3">
           <div className="flex gap-1 p-1 rounded-xl bg-white/[0.04] border border-white/[0.06]">
-            {['create', 'login'].map(m => (
-              <button key={m} onClick={() => { setTenantMode(m); setTenantError('') }}
+            {['signup', 'login'].map(m => (
+              <button key={m} type="button" onClick={() => { setAuthTab(m); setAuthError('') }}
                 className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-all
-                  ${tenantMode === m
-                    ? 'bg-purple-500/20 text-purple-300 shadow-sm'
+                  ${authTab === m
+                    ? 'bg-blue-500/20 text-blue-300 shadow-sm'
                     : 'text-slate-500 hover:text-slate-400'
                   }`}>
-                {m === 'create' ? 'Create Account' : 'Login'}
+                {m === 'signup' ? 'Sign Up' : 'Login'}
               </button>
             ))}
           </div>
 
-          {/* Form Content */}
-          {tenantMode === 'create' ? (
-            <motion.div animate={{ boxShadow: ['0 0 12px rgba(139,92,246,0.2)', '0 0 24px rgba(139,92,246,0.4)', '0 0 12px rgba(139,92,246,0.2)'] }}
+          {authTab === 'signup' ? (
+            <motion.div animate={{ boxShadow: ['0 0 12px rgba(59,130,246,0.2)', '0 0 24px rgba(59,130,246,0.4)', '0 0 12px rgba(59,130,246,0.2)'] }}
               transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
               className="rounded-full mt-4">
-              <PrimaryButton onClick={onTenantCreate} glow="purple">
-                <ChevronRight size={16} /> Begin Setup
+              <PrimaryButton onClick={onEmailSignup}>
+                <ChevronRight size={16} /> Continue with Email
               </PrimaryButton>
             </motion.div>
           ) : (
-            <>
-              {/* Username */}
+            <form onSubmit={handleLogin} autoComplete="on" className="flex flex-col gap-3">
               <div className="capsule-field">
-                <User size={16} className="text-slate-500 flex-shrink-0" />
-                <input type="text" placeholder="Username" value={tenantUsername}
-                  onChange={e => setTenantUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
+                <Mail size={16} className="text-slate-500 flex-shrink-0" />
+                <input type="email" placeholder="your.name@mnit.ac.in" value={email}
+                  onChange={e => setEmail(e.target.value.trim().toLowerCase())}
+                  autoComplete="username"
+                  required
                   className="bg-transparent flex-1 outline-none text-white text-sm placeholder:text-slate-600" />
               </div>
-
-              {/* Password */}
               <div className="capsule-field">
                 <Lock size={16} className="text-slate-500 flex-shrink-0" />
-                <input type="password" placeholder="Password (min 6 chars)" value={tenantPassword}
-                  onChange={e => setTenantPassword(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && handleTenantLogin()}
+                <input type="password" placeholder="Password" value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  autoComplete="current-password"
+                  required
                   className="bg-transparent flex-1 outline-none text-white text-sm placeholder:text-slate-600" />
               </div>
+              
+              <div className="flex justify-end">
+                <button type="button" onClick={onForgotPassword} className="text-xs text-blue-400 hover:text-blue-300 transition-colors">
+                  Forgot Password?
+                </button>
+              </div>
 
-              {/* Error */}
-              {tenantError && (
+              {authError && (
                 <motion.p initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }}
-                  className="text-xs text-red-400 text-center px-2">{tenantError}</motion.p>
+                  className="text-xs text-red-400 text-center px-2">{authError}</motion.p>
               )}
-
-              {/* Submit */}
-              <motion.div animate={{ boxShadow: ['0 0 12px rgba(139,92,246,0.2)', '0 0 24px rgba(139,92,246,0.4)', '0 0 12px rgba(139,92,246,0.2)'] }}
+              
+              <motion.div animate={!isLocked ? { boxShadow: ['0 0 12px rgba(59,130,246,0.2)', '0 0 24px rgba(59,130,246,0.4)', '0 0 12px rgba(59,130,246,0.2)'] } : {}}
                 transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
                 className="rounded-full mt-1">
-                <PrimaryButton onClick={handleTenantLogin} disabled={tenantLoading} glow="purple">
-                  {tenantLoading
-                    ? <><Loader2 size={16} className="animate-spin" /> Processing...</>
-                    : <><ChevronRight size={16} /> Login</>
+                <PrimaryButton onClick={() => {}} type="submit" disabled={authLoading || isLocked}>
+                  {authLoading
+                    ? <><Loader2 size={16} className="animate-spin" /> Logging in...</>
+                    : isLocked ? 'Account locked (15m)' : <><ChevronRight size={16} /> Login</>
                   }
                 </PrimaryButton>
               </motion.div>
-            </>
+            </form>
           )}
         </div>
-      ) : (
-        /* ── Standard Auth Form ── */
-        <div className="w-full max-w-xs flex flex-col gap-4">
-          <motion.div animate={{ boxShadow: ['0 0 15px rgba(59,130,246,0.2)', '0 0 30px rgba(59,130,246,0.4)', '0 0 15px rgba(59,130,246,0.2)'] }}
-            transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
-            className="rounded-full">
-            <PrimaryButton onClick={onGoogle} disabled={loading} glow="blue" className="!py-3.5">
-              <GoogleIcon /> Sign in with MNIT ID (Google)
-            </PrimaryButton>
-          </motion.div>
-
-          <div className="flex items-center gap-3 my-1 opacity-60">
-            <div className="flex-1 h-px bg-slate-500" />
-            <span className="text-[10px] font-mono text-slate-400 uppercase tracking-widest">or standard login</span>
-            <div className="flex-1 h-px bg-slate-500" />
-          </div>
-
-          <div className="w-full flex flex-col gap-3">
-            <div className="flex gap-1 p-1 rounded-xl bg-white/[0.04] border border-white/[0.06]">
-              {['create', 'login'].map(m => (
-                <button key={m} onClick={() => { setGuestMode(m); setGuestError('') }}
-                  className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-all
-                    ${guestMode === m
-                      ? 'bg-blue-500/20 text-blue-300 shadow-sm'
-                      : 'text-slate-500 hover:text-slate-400'
-                    }`}>
-                  {m === 'create' ? 'Guest Sign Up' : 'Guest Login'}
-                </button>
-              ))}
-            </div>
-
-            {guestMode === 'create' ? (
-              <motion.div animate={{ boxShadow: ['0 0 12px rgba(59,130,246,0.2)', '0 0 24px rgba(59,130,246,0.4)', '0 0 12px rgba(59,130,246,0.2)'] }}
-                transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
-                className="rounded-full mt-4">
-                <PrimaryButton onClick={onGuest}>
-                  <ChevronRight size={16} /> Continue as Guest
-                </PrimaryButton>
-              </motion.div>
-            ) : (
-              <>
-                <div className="capsule-field">
-                  <Mail size={16} className="text-slate-500 flex-shrink-0" />
-                  <input type="email" placeholder="Email Address" value={guestEmail}
-                    onChange={e => setGuestEmail(e.target.value.trim().toLowerCase())}
-                    className="bg-transparent flex-1 outline-none text-white text-sm placeholder:text-slate-600" />
-                </div>
-                <div className="capsule-field">
-                  <Lock size={16} className="text-slate-500 flex-shrink-0" />
-                  <input type="password" placeholder="Password (min 6 chars)" value={guestPassword}
-                    onChange={e => setGuestPassword(e.target.value)}
-                    onKeyDown={e => e.key === 'Enter' && handleGuestLogin()}
-                    className="bg-transparent flex-1 outline-none text-white text-sm placeholder:text-slate-600" />
-                </div>
-                {guestError && (
-                  <motion.p initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }}
-                    className="text-xs text-red-400 text-center px-2">{guestError}</motion.p>
-                )}
-                <motion.div animate={{ boxShadow: ['0 0 12px rgba(59,130,246,0.2)', '0 0 24px rgba(59,130,246,0.4)', '0 0 12px rgba(59,130,246,0.2)'] }}
-                  transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
-                  className="rounded-full mt-1">
-                  <PrimaryButton onClick={handleGuestLogin} disabled={guestLoading}>
-                    {guestLoading
-                      ? <><Loader2 size={16} className="animate-spin" /> Processing...</>
-                      : <><ChevronRight size={16} /> Login as Guest</>
-                    }
-                  </PrimaryButton>
-                </motion.div>
-              </>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Hidden Tenant Picker Modal */}
-      <AnimatePresence>
-        {showTenantPicker && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[300] flex items-center justify-center bg-black/80 backdrop-blur-sm"
-            onClick={() => setShowTenantPicker(false)}>
-            <motion.div initial={{ scale: 0.9, y: 10 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 10 }}
-              onClick={e => e.stopPropagation()}
-              className="w-64 rounded-2xl bg-[#0a0f1e]/95 border border-white/10 backdrop-blur-xl p-5">
-              <p className="text-[10px] text-slate-600 font-mono text-center mb-4">env:select</p>
-              <div className="flex gap-3">
-                {['C1', 'C2'].map(t => (
-                  <motion.button key={t} whileTap={{ scale: 0.95 }}
-                    onClick={() => { setTenant(TENANTS[t]); localStorage.setItem('onyx_tenant', TENANTS[t]); setShowTenantPicker(false) }}
-                    className={`flex-1 py-3 rounded-xl border text-sm font-bold transition-all
-                      ${tenant === TENANTS[t]
-                        ? 'bg-purple-500/20 border-purple-500/40 text-purple-300'
-                        : 'bg-white/[0.03] border-white/[0.06] text-slate-500 hover:bg-white/[0.06]'
-                      }`}>
-                    {t}
-                  </motion.button>
-                ))}
-              </div>
-              {tenant && (
-                <button onClick={() => { setTenant(null); localStorage.removeItem('onyx_tenant'); setShowTenantPicker(false) }}
-                  className="w-full mt-3 py-2 rounded-lg text-[10px] text-slate-600 hover:text-slate-400 transition-colors">
-                  Reset to default
-                </button>
-              )}
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      </div>
     </div>
   )
 }
@@ -758,11 +609,19 @@ function StepName({ formData, setFormData, onNext }) {
 }
 
 // ── Step 4: Credentials ────────────────────────────────────────────────────
+const PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/
+const PASSWORD_RULES = [
+  { label: 'At least 8 characters', test: p => p.length >= 8 },
+  { label: 'One uppercase letter', test: p => /[A-Z]/.test(p) },
+  { label: 'One lowercase letter', test: p => /[a-z]/.test(p) },
+  { label: 'One number', test: p => /\d/.test(p) }
+]
+
 function StepCredentials({ formData, setFormData, authMode, usernameStatus, onNext }) {
   const validUsername = formData.username.length >= 3 && usernameStatus === 'available'
-  const validPassword = authMode === 'google' || formData.password.length >= 6
-  const validEmail = authMode !== 'guest' || formData.email.includes('@')
-  const valid = validUsername && validPassword && validEmail
+  const validEmail = formData.email.endsWith('@mnit.ac.in')
+  const validPassword = PASSWORD_REGEX.test(formData.password)
+  const valid = validUsername && (authMode === 'google' || (validEmail && validPassword))
 
   const statusIcon = {
     checking: <Loader2 size={16} className="text-blue-400 animate-spin" />,
@@ -773,15 +632,31 @@ function StepCredentials({ formData, setFormData, authMode, usernameStatus, onNe
   return (
     <div className="flex flex-col items-center h-full py-12 px-6">
       <OnyxLogo size="sm" />
-      <div className="w-full max-w-xs mt-auto flex flex-col gap-4 mb-2">
-        {authMode === 'guest' && (
-          <CapsuleInput icon={Mail} type="email" placeholder="Email Address" value={formData.email}
-            onChange={e => setFormData(p => ({ ...p, email: e.target.value.toLowerCase().trim() }))} />
+      <form onSubmit={(e) => { e.preventDefault(); if (valid) onNext() }} className="w-full max-w-xs mt-auto flex flex-col gap-4 mb-2">
+        {authMode === 'email' && (
+          <div className="flex flex-col gap-1">
+            <div className="capsule-field">
+              <Mail size={16} className="text-slate-500 flex-shrink-0" />
+              <input type="email" placeholder="your.name@mnit.ac.in" value={formData.email}
+                onChange={e => setFormData(p => ({ ...p, email: e.target.value.toLowerCase().trim() }))}
+                autoComplete="username"
+                required
+                className="bg-transparent flex-1 outline-none text-white text-sm placeholder:text-slate-600" />
+            </div>
+            {formData.email.length > 0 && !formData.email.endsWith('@mnit.ac.in') && (
+              <p className="text-xs text-red-400 mt-1 ml-4">Must be an @mnit.ac.in email address</p>
+            )}
+          </div>
         )}
+
         <div>
-          <CapsuleInput icon={User} placeholder="Choose Username" value={formData.username}
-            onChange={e => setFormData(p => ({ ...p, username: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '') }))}
-            rightElement={statusIcon[usernameStatus]} />
+          <div className="capsule-field">
+            <User size={16} className="text-slate-500 flex-shrink-0" />
+            <input type="text" placeholder="Choose Username" value={formData.username}
+              onChange={e => setFormData(p => ({ ...p, username: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '') }))}
+              className="bg-transparent flex-1 outline-none text-white text-sm placeholder:text-slate-600" />
+            <div className="ml-2">{statusIcon[usernameStatus]}</div>
+          </div>
           {usernameStatus === 'taken' && (
             <p className="text-xs text-red-400 mt-1.5 ml-4">Username is already taken</p>
           )}
@@ -789,22 +664,42 @@ function StepCredentials({ formData, setFormData, authMode, usernameStatus, onNe
             <p className="text-xs text-emerald-400 mt-1.5 ml-4">Username is available!</p>
           )}
         </div>
-        {(authMode === 'guest' || authMode === 'tenant') && (
+
+        {authMode === 'email' && (
           <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} transition={{ duration: 0.3 }}>
-            <CapsuleInput icon={Lock} type="password" placeholder="Create Password" value={formData.password}
-              onChange={e => setFormData(p => ({ ...p, password: e.target.value }))}
-              rightElement={formData.password.length > 0 && formData.password.length < 6
-                ? <span className="text-[10px] text-red-400 whitespace-nowrap">Min 6 chars</span>
-                : formData.password.length >= 6 ? <Check size={14} className="text-emerald-400" /> : null
-              } />
+            <div className="capsule-field">
+              <Lock size={16} className="text-slate-500 flex-shrink-0" />
+              <input type="password" placeholder="Create Password" value={formData.password}
+                onChange={e => setFormData(p => ({ ...p, password: e.target.value }))}
+                autoComplete="new-password"
+                required
+                className="bg-transparent flex-1 outline-none text-white text-sm placeholder:text-slate-600" />
+            </div>
+
+            {formData.password.length > 0 && (
+              <div className="mt-3 ml-2 space-y-1">
+                {PASSWORD_RULES.map((rule) => {
+                  const passed = rule.test(formData.password);
+                  return (
+                    <div key={rule.label} className="flex items-center gap-2">
+                      <div className={`w-3.5 h-3.5 rounded-full flex items-center justify-center ${passed ? 'bg-emerald-500/20 border border-emerald-500/50' : 'bg-white/5 border border-white/10'}`}>
+                        {passed && <Check className="w-2 h-2 text-emerald-400" />}
+                      </div>
+                      <span className={`text-xs ${passed ? 'text-emerald-400' : 'text-white/40'}`}>{rule.label}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </motion.div>
         )}
-      </div>
-      <div className="w-full max-w-xs mt-6">
-        <PrimaryButton onClick={onNext} disabled={!valid}>
-          Next <ChevronRight size={18} />
-        </PrimaryButton>
-      </div>
+
+        <div className="w-full mt-6">
+          <PrimaryButton onClick={() => {}} type="submit" disabled={!valid}>
+            Next <ChevronRight size={18} />
+          </PrimaryButton>
+        </div>
+      </form>
     </div>
   )
 }
@@ -1018,11 +913,11 @@ function StepProfile({ formData, setFormData, submitting, onSubmit }) {
 export default function OnboardingWizard({ onComplete, session }) {
   const [step, setStep] = useState(1)
   const [direction, setDirection] = useState(1)
-  const [authMode, setAuthMode] = useState(null) // 'google' | 'guest'
+  const [authMode, setAuthMode] = useState(null) // 'google' | 'email'
   const [loading, setLoading] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [usernameStatus, setUsernameStatus] = useState('idle')
-  const [tenant, setTenant] = useState(() => localStorage.getItem('onyx_tenant') || null)
+  const [showForgotPassword, setShowForgotPassword] = useState(false)
   const [detected, setDetected] = useState(null) // parsed MNIT email data
   const debounceRef = useRef(null)
 
@@ -1035,10 +930,6 @@ export default function OnboardingWizard({ onComplete, session }) {
   // If we already have a session (Google returning), skip to step 3
   useEffect(() => {
     if (session?.user) {
-      // If this is a tenant user returning via page reload, skip onboarding entirely
-      const isTenantUser = session.user.email?.endsWith('.onyxapp.com')
-      if (isTenantUser) return // App.jsx checkProfile will handle routing
-
       setAuthMode('google')
       // Pre-fill name from Google metadata if available
       const meta = session.user.user_metadata
@@ -1083,8 +974,7 @@ export default function OnboardingWizard({ onComplete, session }) {
     setUsernameStatus('checking')
     debounceRef.current = setTimeout(async () => {
       try {
-        let query = supabase.from('profiles').select('id').eq('username', uname)
-        if (tenant) query = query.eq('tenant_id', tenant)
+        const query = supabase.from('profiles').select('id').eq('username', uname)
         
         const { data, error } = await query.maybeSingle()
         if (error) { setUsernameStatus('error'); return }
@@ -1118,10 +1008,9 @@ export default function OnboardingWizard({ onComplete, session }) {
     }
   }
 
-  // ── Guest Selection ──
-  const handleGuest = async () => {
-    // Skip step 3 (SmartDecrypt) — it only applies to MNIT Google users
-    setAuthMode('guest')
+  // ── Email Signup ──
+  const handleEmailSignup = () => {
+    setAuthMode('email')
     setDirection(1)
     setStep(4) // Jump directly to StepName
   }
@@ -1134,14 +1023,10 @@ export default function OnboardingWizard({ onComplete, session }) {
     try {
       let userId
 
-      if (authMode === 'guest' || authMode === 'tenant') {
-        window.__GUEST_TRANSITION__ = true
-        const safeUsername = formData.username.replace(/[^a-z0-9_]/g, '')
-        const email = authMode === 'tenant'
-          ? `${safeUsername}@${tenant.replace(/_/g, '')}.onyxapp.com`
-          : formData.email
+      if (authMode === 'email') {
+        if (!formData.email.endsWith('@mnit.ac.in')) throw new Error('Only @mnit.ac.in emails are allowed.')
         const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-          email,
+          email: formData.email,
           password: formData.password,
         })
         if (signUpError) throw signUpError
@@ -1172,24 +1057,15 @@ export default function OnboardingWizard({ onComplete, session }) {
         username: formData.username.trim(),
         bio: formData.bio.trim() || null,
         date_of_birth: formData.dob || null,
-        btech_year: formData.btechYear || (authMode === 'guest' ? 'Fresher' : null),
+        btech_year: formData.btechYear || null,
         branch: formData.branch || null,
         section: formData.section || null,
         is_pulse_active: formData.isPulseActive,
         ...(avatarUrl ? { avatar_url: avatarUrl } : {}),
       }
 
-      if (authMode === 'tenant') {
-        profileData.tenant_id = tenant
-      }
-
       const { error: profileError } = await supabase.from('profiles').upsert(profileData)
       if (profileError) throw profileError
-
-      if (authMode === 'guest') {
-        localStorage.setItem('onyx_guest_account_created', 'true')
-        localStorage.setItem('onyx_guest_user_id', userId)
-      }
 
       if (onComplete) {
         onComplete({
@@ -1251,7 +1127,7 @@ export default function OnboardingWizard({ onComplete, session }) {
             className="absolute inset-0">
 
             {step === 1 && <StepWelcome onNext={goNext} />}
-            {step === 2 && <StepAuthSelection onGoogle={handleGoogle} onGuest={handleGuest} loading={loading} tenant={tenant} setTenant={setTenant} onTenantCreate={() => { setAuthMode('tenant'); goNext() }} />}
+            {step === 2 && <StepAuthSelection onGoogle={handleGoogle} onEmailSignup={handleEmailSignup} loading={loading} onForgotPassword={() => setShowForgotPassword(true)} />}
             {/* Step 3: Smart Decrypt — only shown for MNIT Google users */}
             {step === 3 && detected && (
               <StepSmartDecrypt detected={detected} onNext={goNext} />
@@ -1265,6 +1141,10 @@ export default function OnboardingWizard({ onComplete, session }) {
           </motion.div>
         </AnimatePresence>
       </div>
+
+      <AnimatePresence>
+        {showForgotPassword && <ForgotPasswordModal onClose={() => setShowForgotPassword(false)} />}
+      </AnimatePresence>
     </div>
   )
 }

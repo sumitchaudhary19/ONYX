@@ -340,7 +340,8 @@ export default function SettingsView({ profile, session }) {
 
   const showMsg = (msg, icon = CheckCircle2, color = '#60a5fa') => setToast({ msg, icon, color })
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await supabase.auth.signOut()
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i)
       if (key && key.startsWith('sb-') && key.endsWith('-auth-token')) {
@@ -355,7 +356,7 @@ export default function SettingsView({ profile, session }) {
     if (isGoogle) {
       showMsg('You are signed in using Google OAuth. Password changes are managed via your Google Account.', AlertCircle, '#f59e0b')
     } else {
-      showMsg('Password management for email users is not yet configured.', AlertCircle, '#f59e0b')
+      navigate('/update-password')
     }
   }
 

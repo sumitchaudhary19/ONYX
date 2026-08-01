@@ -6,6 +6,7 @@ import MainLayout from './components/MainLayout'
 import UserProfile from './views/UserProfile'
 import ChatRoom from './views/ChatRoom'
 import GroupChatRoom from './views/GroupChatRoom'
+import UpdatePassword from './views/UpdatePassword'
 import { ThemeProvider } from './contexts/ThemeContext'
 
 /* ── Error Boundary (catches React render crashes) ───── */
@@ -60,7 +61,6 @@ export default function App() {
   useEffect(() => {
     // 1. Grab existing session immediately
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (window.__GUEST_TRANSITION__) return
       const isGoogle = session?.user?.app_metadata?.provider === 'google'
       if (session?.user && isGoogle && !session.user.email.endsWith('@mnit.ac.in')) {
         supabase.auth.signOut()
@@ -78,7 +78,6 @@ export default function App() {
 
     // 2. React to future auth events (login, logout, token refresh)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (window.__GUEST_TRANSITION__) return
       const isGoogle = session?.user?.app_metadata?.provider === 'google'
       if (session?.user && isGoogle && !session.user.email.endsWith('@mnit.ac.in')) {
         await supabase.auth.signOut()
@@ -214,6 +213,9 @@ export default function App() {
             <OnboardingWizard onComplete={handleOnboardingComplete} session={session} />
           }
         />
+
+        {/* ── Password Reset Flow ── */}
+        <Route path="/update-password" element={<UpdatePassword />} />
 
         {/* ─ Main Chat Shell ───────────────────────── */}
         <Route
