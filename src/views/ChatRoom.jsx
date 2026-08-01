@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ArrowLeft, Check, CheckCheck, X, Reply, Forward, Edit3, Trash2, Pin, Shield, Lock, IndianRupee, QrCode, ExternalLink } from 'lucide-react'
+import { ArrowLeft, Check, CheckCheck, X, Reply, Forward, Edit3, Trash2, Pin, Shield, Lock, IndianRupee, QrCode, ExternalLink, Flag, ShieldAlert, EyeOff, Trash } from 'lucide-react'
+import { scanImage } from '../utils/nsfwCheck'
 import { supabase } from '../supabaseClient'
 import TypingBar from '../components/TypingBar'
 import { processMediaFile } from '../utils/mediaUtils'
@@ -59,23 +60,34 @@ function VoicePlayer({ url, isMine }) {
   )
 }
 
-function MsgMenu({ msg, isMine, onReply, onForward, onEdit, onDelete, onPin, onClose }) {
+function MsgMenu({ msg, isMine, onReply, onForward, onEdit, onDeleteForMe, onDeleteForEveryone, onPin, onReport, onClose }) {
+  const withinWindow = msg?.created_at && (Date.now() - new Date(msg.created_at).getTime() < 15 * 60 * 1000)
+
+  const actions = [
+    ...(!isMine ? [
+      { icon: Reply, label: 'Reply this text', color: '#60a5fa', action: onReply },
+      { icon: Pin, label: msg?.is_pinned ? 'Unpin this text' : 'Pin this text', color: '#f59e0b', action: onPin },
+    ] : []),
+    { icon: Forward, label: 'Forward', color: '#a78bfa', action: onForward },
+    ...(isMine ? [
+      { icon: Edit3, label: 'Edit Text', color: '#34d399', action: onEdit },
+    ] : []),
+    { icon: EyeOff, label: 'Delete for Me', color: '#94a3b8', action: onDeleteForMe },
+    ...(isMine && withinWindow ? [
+      { icon: Trash, label: 'Delete for Everyone', color: '#f87171', action: onDeleteForEveryone },
+    ] : []),
+    ...(!isMine ? [
+      { icon: Flag, label: 'Report', color: '#f59e0b', action: () => onReport('other') },
+      { icon: ShieldAlert, label: 'Abuse', color: '#ef4444', action: () => onReport('abuse') },
+    ] : []),
+  ]
+
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
       className="fixed inset-0 z-[400] flex items-center justify-center bg-black/40 backdrop-blur-sm px-4" onClick={onClose}>
       <motion.div initial={{ scale: 0.9, y: 10 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 10 }} onClick={e => e.stopPropagation()}
         className="bg-gradient-to-b from-[#0d1630] to-[#080e22] border border-white/10 rounded-2xl p-2 min-w-[200px] w-full max-w-xs shadow-2xl">
-        {[
-          ...(!isMine ? [
-            { icon: Reply, label: 'Reply this text', color: '#60a5fa', action: onReply },
-            { icon: Pin, label: msg?.is_pinned ? 'Unpin this text' : 'Pin this text', color: '#f59e0b', action: onPin },
-          ] : []),
-          { icon: Forward, label: 'Forward', color: '#a78bfa', action: onForward },
-          ...(isMine ? [
-            { icon: Edit3, label: 'Edit Text', color: '#34d399', action: onEdit },
-            { icon: Trash2, label: 'Delete', color: '#f87171', action: onDelete }
-          ] : [])
-        ].map(({ icon: Icon, label, color, action }) => (
+        {actions.map(({ icon: Icon, label, color, action }) => (
           <motion.button key={label} onClick={() => { action(); onClose() }} whileTap={{ scale: 0.98 }}
             className="w-full flex items-center gap-3 p-3 bg-transparent hover:bg-white/5 border-none cursor-pointer rounded-xl transition-colors" style={{ color }}>
             <Icon className="w-4 h-4 shrink-0" /><span className="text-[15px] font-medium">{label}</span>
@@ -320,7 +332,11 @@ function Bubble({ msg, isMine, myId, onLongPress, replyMsg, navigate }) {
           {msg?.video_url && <video src={msg.video_url} controls className={`max-w-[220px] shadow-lg bg-black ${isMine ? 'rounded-[18px_18px_4px_18px]' : 'rounded-[18px_18px_18px_4px]'} ${msg.content ? 'mb-1.5' : ''}`} />}
           {msg?.content && (
             <div className={`max-w-[75vw] md:max-w-md px-4 py-2.5 text-[15px] leading-relaxed break-words ${isMine ? 'rounded-[20px_20px_4px_20px] bg-gradient-to-br from-blue-600 to-blue-700 text-white shadow-md' : 'rounded-[20px_20px_20px_4px] bg-white/10 border border-white/10 text-slate-100'}`}>
-              {msg.content}
+              {msg.is_deleted ? (
+                <p className="text-sm italic text-slate-500">This message was deleted</p>
+              ) : (
+                msg.content
+              )}
             </div>
           )}
         </>)
@@ -497,11 +513,14 @@ export default function ChatRoom({ currentProfile }) {
       .or(`and(sender_id.eq.${myId},receiver_id.eq.${friendId}),and(sender_id.eq.${friendId},receiver_id.eq.${myId})`)
       .order('created_at', { ascending: false })
       .limit(20)
-      .then(({ data }) => { 
-        const raw = (data || []).reverse()
+      .then(async ({ data }) => { 
+        let raw = (data || []).reverse()
+        const { data: hiddenData } = await supabase.from('hidden_messages').select('message_id').eq('user_id', myId)
+        const hiddenIds = new Set((hiddenData || []).map(h => h.message_id))
+        raw = raw.filter(m => !hiddenIds.has(m.id))
         const valid = filterEphemeralMessages(raw)
         setMessages(valid)
-        setHasMore(raw.length >= 20)
+        setHasMore((data || []).length >= 20)
         setLoading(false)
         setTimeout(scrollBottom, 80) 
       })
@@ -517,9 +536,12 @@ export default function ChatRoom({ currentProfile }) {
         .lt('created_at', oldest.created_at)
         .order('created_at', { ascending: false })
         .limit(20)
-      const raw = (data || []).reverse()
+      let raw = (data || []).reverse()
+      const { data: hiddenData } = await supabase.from('hidden_messages').select('message_id').eq('user_id', myId)
+      const hiddenIds = new Set((hiddenData || []).map(h => h.message_id))
+      raw = raw.filter(m => !hiddenIds.has(m.id))
       const valid = filterEphemeralMessages(raw)
-      if (valid.length < 20) setHasMore(false)
+      if ((data || []).length < 20) setHasMore(false)
       if (valid.length > 0) setMessages(prev => [...valid, ...prev])
     } catch (e) { console.error('[ChatRoom] loadOlder:', e) }
     finally { setLoadingMore(false) }
@@ -582,6 +604,16 @@ export default function ChatRoom({ currentProfile }) {
       const processedFile = await processMediaFile(imageFile, window.alert)
       if (!processedFile) return
 
+      // NSFW scan
+      if (processedFile.type.startsWith('image/')) {
+        const nsfwResult = await scanImage(processedFile)
+        if (!nsfwResult.safe) {
+          setImageFile(null); setText('')
+          alert('Upload blocked: Inappropriate content detected.')
+          return
+        }
+      }
+
       const ext = processedFile.name.split('.').pop()
       const path = `${myId}/${Date.now()}.${ext}`
       await supabase.storage.from('chat_images').upload(path, processedFile, { contentType: processedFile.type })
@@ -599,7 +631,33 @@ export default function ChatRoom({ currentProfile }) {
     setSelectedMsg(null)
   }
 
-  const deleteMsg = async (msg) => { if(!msg?.id) return; await supabase.from('messages').delete().eq('id', msg.id); setMessages(prev => prev.filter(m => m.id !== msg.id)) }
+  // Delete for Me: hide message locally + persist to DB
+  const deleteForMe = async (msg) => {
+    if (!msg?.id) return
+    try {
+      await supabase.from('hidden_messages').insert({ user_id: myId, message_id: msg.id })
+    } catch (e) { console.error('[Chat] hide msg:', e) }
+    setMessages(prev => prev.filter(m => m.id !== msg.id))
+  }
+
+  // Delete for Everyone: soft-delete within 15-min window
+  const deleteForEveryone = async (msg) => {
+    if (!msg?.id) return
+    const age = Date.now() - new Date(msg.created_at).getTime()
+    if (age > 15 * 60 * 1000) return
+    try {
+      await supabase.from('messages').update({ content: 'This message was deleted', is_deleted: true }).eq('id', msg.id)
+      setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, content: 'This message was deleted', is_deleted: true } : m))
+    } catch (e) { console.error('[Chat] delete for everyone:', e) }
+  }
+
+  // Report a message
+  const reportMessage = async (msg, reason) => {
+    if (!msg?.id) return
+    try {
+      await supabase.from('message_reports').insert({ message_id: msg.id, reporter_id: myId, reason })
+    } catch (e) { console.error('[Chat] report msg:', e) }
+  }
   const editMsg = (id, txt) => setMessages(prev => prev.map(m => m.id === id ? { ...m, content: txt } : m))
   
   const togglePinMsg = async (msg) => {
@@ -781,11 +839,13 @@ export default function ChatRoom({ currentProfile }) {
       <AnimatePresence>
         {selectedMsg && !showForward && !showEdit && (
           <MsgMenu msg={selectedMsg} isMine={selectedMsg.sender_id === myId}
-            onReply={() => setReplyTo(selectedMsg)}
+            onReply={() => { setReplyTo(selectedMsg); setSelectedMsg(null) }}
             onForward={() => setShowForward(true)}
             onEdit={() => setShowEdit(true)}
-            onDelete={() => { deleteMsg(selectedMsg); setSelectedMsg(null) }}
+            onDeleteForMe={() => deleteForMe(selectedMsg)}
+            onDeleteForEveryone={() => deleteForEveryone(selectedMsg)}
             onPin={() => togglePinMsg(selectedMsg)}
+            onReport={(reason) => reportMessage(selectedMsg, reason)}
             onClose={() => setSelectedMsg(null)} />
         )}
         {showForward && <FriendPicker title="Forward to…" currentProfile={currentProfile} onSelect={forwardTo} onClose={() => { setShowForward(false); setSelectedMsg(null) }} />}

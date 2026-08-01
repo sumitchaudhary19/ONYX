@@ -183,12 +183,15 @@ function EchoModal({ currentProfile, onClose, onPosted }) {
       
       if (postErr) throw postErr
 
-      // Auto-Create hashtags
+      // Auto-Create hashtags & link to post
       const extractedTags = text.match(/#(\w+)/g)?.map(t => t.slice(1).toLowerCase()) || []
       const uniqueTags = [...new Set(extractedTags)]
       if (uniqueTags.length > 0) {
         const tagRecords = uniqueTags.map(tag => ({ tag }))
         await supabase.from('hashtags').upsert(tagRecords, { onConflict: 'tag', ignoreDuplicates: true }).catch(() => {})
+        // Link hashtags to post for smart feed
+        const linkRecords = uniqueTags.map(tag => ({ post_id: post.id, hashtag: tag }))
+        await supabase.from('post_hashtags').insert(linkRecords).catch(() => {})
       }
 
       if (onPosted) onPosted(post)
@@ -307,21 +310,74 @@ export default function HomeFeed({ profile }) {
         setActiveStory(null)
       }
 
-      // Load ALL public posts instead
-      let postsQuery = supabase
+      // ── Smart Feed Algorithm: 70% interest-based, 30% latest ──
+
+      // 1. Fetch user's top hashtag interests
+      const { data: interests } = await supabase
+        .from('user_interests')
+        .select('hashtag, weight')
+        .eq('user_id', myId)
+        .order('weight', { ascending: false })
+        .limit(10)
+
+      const topTags = (interests || []).map(i => i.hashtag)
+      let interestPosts = []
+      let latestPosts = []
+
+      // 2. Interest-based posts (70%)
+      if (topTags.length > 0) {
+        const { data: taggedPostIds } = await supabase
+          .from('post_hashtags')
+          .select('post_id')
+          .in('hashtag', topTags)
+
+        const interestPostIds = [...new Set((taggedPostIds || []).map(t => t.post_id))]
+
+        if (interestPostIds.length > 0) {
+          let iq = supabase
+            .from('posts')
+            .select('*,profiles:user_id(id,first_name,last_name,avatar_url)')
+            .in('id', interestPostIds)
+            .neq('user_id', myId)
+            .neq('is_flagged', true)
+            .order('created_at', { ascending: false })
+            .limit(14) // 70% of 20
+
+          if (profile?.tenant_id) iq = iq.eq('tenant_id', profile.tenant_id)
+          else iq = iq.is('tenant_id', null)
+
+          const { data } = await iq
+          interestPosts = data || []
+        }
+      }
+
+      // 3. Latest campus posts (30%) — exclude own posts + flagged
+      const excludeIds = interestPosts.map(p => p.id)
+      let lq = supabase
         .from('posts')
         .select('*,profiles:user_id(id,first_name,last_name,avatar_url)')
+        .neq('user_id', myId)
+        .neq('is_flagged', true)
         .order('created_at', { ascending: false })
-        .limit(20)
+        .limit(topTags.length > 0 ? 6 : 20) // 30% if we have interests, otherwise full
 
-      if (profile?.tenant_id) {
-        postsQuery = postsQuery.eq('tenant_id', profile.tenant_id)
-      } else {
-        postsQuery = postsQuery.is('tenant_id', null)
+      if (profile?.tenant_id) lq = lq.eq('tenant_id', profile.tenant_id)
+      else lq = lq.is('tenant_id', null)
+
+      if (excludeIds.length > 0) {
+        // Supabase doesn't have .not_in natively, so we'll filter client-side
       }
-      
-      const { data: rawPosts } = await postsQuery
-      
+
+      const { data: latestRaw } = await lq
+      const excludeSet = new Set(excludeIds)
+      latestPosts = (latestRaw || []).filter(p => !excludeSet.has(p.id))
+
+      // 4. Merge & deduplicate
+      const mergedMap = new Map()
+      for (const p of interestPosts) mergedMap.set(p.id, p)
+      for (const p of latestPosts) if (!mergedMap.has(p.id)) mergedMap.set(p.id, p)
+      const rawPosts = [...mergedMap.values()].sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+
       if (!rawPosts || rawPosts.length === 0) { 
         setPosts([])
         setHasMore(false)

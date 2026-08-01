@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Heart, MessageCircle, Share2, X, Send, ImagePlus, Video, ChevronDown } from 'lucide-react'
+import { Heart, MessageCircle, Share2, X, Send, ImagePlus, Video, ChevronDown, MoreVertical, Flag, ThumbsDown, AlertTriangle, Ban, ShieldAlert, Loader2 } from 'lucide-react'
 import { supabase } from '../supabaseClient'
+import { scanImage } from '../utils/nsfwCheck'
 
 const GRADS = ['linear-gradient(135deg,#3b82f6,#06b6d4)','linear-gradient(135deg,#8b5cf6,#ec4899)','linear-gradient(135deg,#10b981,#14b8a6)','linear-gradient(135deg,#f59e0b,#f97316)','linear-gradient(135deg,#a855f7,#7c3aed)']
 
@@ -20,6 +21,7 @@ function CreatePostModal({ currentProfile, onClose, onPosted }) {
   const [preview, setPreview] = useState(null)
   const [caption, setCaption] = useState('')
   const [uploading, setUploading] = useState(false)
+  const [scanning, setScanning] = useState(false)
   const [error, setError] = useState(null)
 
   const pickFile = (e) => {
@@ -31,6 +33,18 @@ function CreatePostModal({ currentProfile, onClose, onPosted }) {
     if (!file) { setError('Please select a photo or video.'); return }
     setUploading(true); setError(null)
     try {
+      // NSFW scan for images
+      if (file.type.startsWith('image/')) {
+        setScanning(true)
+        const result = await scanImage(file)
+        setScanning(false)
+        if (!result.safe) {
+          setError('Upload blocked: Inappropriate content detected.')
+          setFile(null); setPreview(null)
+          setUploading(false)
+          return
+        }
+      }
       const ext = file.name.split('.').pop()
       const path = `${currentProfile.id}/${Date.now()}.${ext}`
       const { error: upErr } = await supabase.storage.from('onyx_posts').upload(path, file, { contentType: file.type })
@@ -86,9 +100,9 @@ function CreatePostModal({ currentProfile, onClose, onPosted }) {
 
         {error && <p className="text-xs text-red-400 bg-red-500/10 px-3 py-2 rounded-xl">{error}</p>}
 
-        <motion.button onClick={submit} disabled={uploading} whileTap={{ scale: 0.97 }}
+        <motion.button onClick={submit} disabled={uploading || scanning} whileTap={{ scale: 0.97 }}
           className="py-3.5 rounded-xl bg-gradient-to-r from-blue-600 to-violet-600 text-white font-semibold text-sm flex items-center justify-center gap-2 disabled:opacity-50 shadow-[0_4px_20px_rgba(99,102,241,0.4)]">
-          {uploading ? 'Uploading…' : 'Share Post'}
+          {scanning ? <><Loader2 className="w-4 h-4 animate-spin" /> Scanning image...</> : uploading ? 'Uploading…' : 'Share Post'}
         </motion.button>
       </motion.div>
     </motion.div>
@@ -155,8 +169,86 @@ function SharePostModal({ post, currentProfile, onClose }) {
   )
 }
 
+/* ── Post Action Menu (3-dot) ── */
+function PostActionMenu({ post, currentProfile, onHide }) {
+  const [show, setShow] = useState(false)
+  const [reported, setReported] = useState(false)
+
+  const reportPost = async (reason) => {
+    try {
+      await supabase.from('post_reports').insert({
+        post_id: post.id,
+        reporter_id: currentProfile.id,
+        reason,
+      })
+      setReported(true)
+      setTimeout(() => setShow(false), 1500)
+    } catch (e) {
+      console.error('[PostAction] report:', e)
+    }
+  }
+
+  const handleNotInterested = async () => {
+    // Decrement interest weights for this post's hashtags
+    try {
+      const { data: tags } = await supabase.from('post_hashtags').select('hashtag').eq('post_id', post.id)
+      if (tags && tags.length > 0) {
+        await supabase.rpc('decrement_interests', {
+          p_user_id: currentProfile.id,
+          p_hashtags: tags.map(t => t.hashtag),
+        })
+      }
+    } catch (e) { console.error('[PostAction] decrement:', e) }
+    onHide(post.id)
+    setShow(false)
+  }
+
+  const actions = [
+    { icon: ThumbsDown, label: 'Not Interested', color: '#94a3b8', action: handleNotInterested },
+    { icon: Flag, label: 'Report', color: '#f59e0b', action: () => reportPost('other') },
+    { icon: Ban, label: 'Spam', color: '#f97316', action: () => reportPost('spam') },
+    { icon: AlertTriangle, label: 'Fake Info', color: '#ef4444', action: () => reportPost('fake_info') },
+    { icon: ShieldAlert, label: 'Abuse', color: '#dc2626', action: () => reportPost('abuse') },
+    { icon: ShieldAlert, label: 'NSFW', color: '#be185d', action: () => reportPost('nsfw') },
+  ]
+
+  return (
+    <div className="relative">
+      <button onClick={() => setShow(!show)} className="p-1.5 rounded-lg hover:bg-white/10 transition-colors">
+        <MoreVertical className="w-4 h-4 text-slate-500" />
+      </button>
+      <AnimatePresence>
+        {show && (
+          <>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[350]" onClick={() => setShow(false)} />
+            <motion.div initial={{ opacity: 0, scale: 0.9, y: -4 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: -4 }}
+              className="absolute right-0 top-8 z-[400] min-w-[180px] bg-[#0d1630]/95 border border-white/10 rounded-xl p-1.5 shadow-2xl backdrop-blur-xl">
+              {reported ? (
+                <div className="flex items-center gap-2 p-3 text-emerald-400 text-sm font-medium">
+                  <Flag className="w-4 h-4" /> Report submitted
+                </div>
+              ) : (
+                actions.map(({ icon: Icon, label, color, action }) => (
+                  <button key={label} onClick={action}
+                    className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg hover:bg-white/5 transition-colors text-left"
+                    style={{ color }}>
+                    <Icon className="w-4 h-4 shrink-0" />
+                    <span className="text-[13px] font-medium">{label}</span>
+                  </button>
+                ))
+              )}
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
+
 /* ── Post Card ── */
 export function PostCard({ post, currentProfile }) {
+  const [hidden, setHidden] = useState(false)
   const [liked, setLiked] = useState(post.user_liked || false)
   const [likeCount, setLikeCount] = useState(post.like_count || 0)
   const [comments, setComments] = useState([])
@@ -185,6 +277,16 @@ export function PostCard({ post, currentProfile }) {
     } else {
       await supabase.from('post_likes').insert({ post_id: post.id, user_id: myId })
       setLiked(true); setLikeCount(c => c + 1)
+      // Track interest
+      try {
+        const { data: tags } = await supabase.from('post_hashtags').select('hashtag').eq('post_id', post.id)
+        if (tags && tags.length > 0) {
+          await supabase.rpc('increment_interests', {
+            p_user_id: myId,
+            p_hashtags: tags.map(t => t.hashtag),
+          })
+        }
+      } catch (e) { console.error('[Feed] interest track:', e) }
     }
   }
 
@@ -208,6 +310,8 @@ export function PostCard({ post, currentProfile }) {
     return `${Math.floor(diff / 86400)}d ago`
   }
 
+  if (hidden) return null
+
   return (
     <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ type: 'spring', stiffness: 300, damping: 28 }}
       className="w-full max-w-[540px] mx-auto bg-[#0d1830]/80 border border-white/8 rounded-3xl overflow-hidden shadow-xl backdrop-blur-sm mb-5">
@@ -218,6 +322,7 @@ export function PostCard({ post, currentProfile }) {
           <p className="text-[14px] font-bold text-white truncate">{authorName}</p>
           <p className="text-[11px] text-slate-500">{timeAgo(post.created_at)}</p>
         </div>
+        <PostActionMenu post={post} currentProfile={currentProfile} onHide={() => setHidden(true)} />
       </div>
 
       {/* Content Rendering */}
