@@ -982,7 +982,7 @@ export default function OnboardingWizard({ onComplete, session }) {
       } catch { setUsernameStatus('error') }
     }, 500)
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current) }
-  }, [formData.username, tenant])
+  }, [formData.username])
 
   const goNext = () => { setDirection(1); setStep(s => s + 1) }
   const goBack = () => {
