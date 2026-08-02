@@ -2,8 +2,8 @@
  * NSFW Image Scanner — Client-side AI Content Moderation
  * Uses nsfwjs (TensorFlow.js) to detect inappropriate content before upload.
  * Model is lazily loaded on first scan and cached for subsequent checks.
+ * Both TensorFlow.js and nsfwjs are dynamically imported to avoid bloating the main bundle.
  */
-import * as tf from '@tensorflow/tfjs'
 
 let nsfwModel = null
 let modelLoading = false
@@ -22,7 +22,8 @@ async function loadModel() {
   modelLoading = true
   modelPromise = (async () => {
     try {
-      // Dynamic import to keep nsfwjs out of the main bundle until needed
+      // Dynamic imports to keep TF.js + nsfwjs out of the main bundle
+      await import('@tensorflow/tfjs')
       const nsfwjs = await import('nsfwjs')
       // Use the MobileNet v2 model (smaller, faster)
       const model = await nsfwjs.load('MobileNetV2')

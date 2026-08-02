@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Heart, MessageCircle, Share2, X, Send, ImagePlus, Video, ChevronDown, MoreVertical, Flag, ThumbsDown, AlertTriangle, Ban, ShieldAlert, Loader2 } from 'lucide-react'
+import { Heart, MessageCircle, Share2, X, Send, ImagePlus, Video, ChevronDown, MoreVertical, Flag, ThumbsDown, AlertTriangle, Ban, ShieldAlert, Loader2, Hash } from 'lucide-react'
 import { supabase } from '../supabaseClient'
 import { scanImage } from '../utils/nsfwCheck'
 
@@ -23,6 +23,10 @@ function CreatePostModal({ currentProfile, onClose, onPosted }) {
   const [uploading, setUploading] = useState(false)
   const [scanning, setScanning] = useState(false)
   const [error, setError] = useState(null)
+  const [hashtags, setHashtags] = useState([])
+  const [tagInput, setTagInput] = useState('')
+  const [tagSuggestions, setTagSuggestions] = useState([])
+  const [showTagSuggestions, setShowTagSuggestions] = useState(false)
 
   const pickFile = (e) => {
     const f = e.target.files?.[0]; if (!f) return
@@ -58,6 +62,19 @@ function CreatePostModal({ currentProfile, onClose, onPosted }) {
         caption: caption.trim() || null,
       }).select('*').single()
       if (postErr) throw postErr
+
+      // Link hashtags to post
+      const allTags = [...hashtags]
+      // Also extract hashtags from caption
+      const captionTags = (caption.match(/#(\w+)/g) || []).map(t => t.slice(1).toLowerCase())
+      captionTags.forEach(t => { if (!allTags.includes(t)) allTags.push(t) })
+      if (allTags.length > 0) {
+        const tagRecords = allTags.map(tag => ({ tag }))
+        await supabase.from('hashtags').upsert(tagRecords, { onConflict: 'tag', ignoreDuplicates: true }).catch(() => {})
+        const linkRecords = allTags.map(tag => ({ post_id: post.id, hashtag: tag }))
+        await supabase.from('post_hashtags').insert(linkRecords).catch(() => {})
+      }
+
       onPosted(post)
       onClose()
     } catch (e) { console.error('[Feed] create post:', e); setError(e.message) }
@@ -97,6 +114,61 @@ function CreatePostModal({ currentProfile, onClose, onPosted }) {
 
         <textarea value={caption} onChange={e => setCaption(e.target.value)} placeholder="Write a caption…" rows={3}
           className="w-full px-3.5 py-3 rounded-xl bg-white/5 border border-white/10 text-[#f0f4ff] text-sm resize-none outline-none focus:border-blue-500/50 transition-colors placeholder-slate-500" />
+
+        {/* Hashtag Input */}
+        <div className="flex flex-col gap-2">
+          <div className="flex flex-wrap gap-1.5">
+            {hashtags.map(tag => (
+              <span key={tag} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-500/15 border border-blue-500/20 text-blue-400 text-xs font-semibold">
+                #{tag}
+                <button onClick={() => setHashtags(prev => prev.filter(t => t !== tag))} className="hover:text-red-400 transition-colors">
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            ))}
+          </div>
+          <div className="relative">
+            <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-white/5 border border-white/10 focus-within:border-blue-500/50 transition-colors">
+              <Hash className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+              <input
+                value={tagInput}
+                onChange={async (e) => {
+                  const val = e.target.value.replace(/[^a-zA-Z0-9_]/g, '').toLowerCase()
+                  setTagInput(val)
+                  if (val.length > 0) {
+                    const { data } = await supabase.from('hashtags').select('tag').ilike('tag', `${val}%`).limit(5)
+                    setTagSuggestions(data?.map(d => d.tag) || [])
+                    setShowTagSuggestions(true)
+                  } else {
+                    setShowTagSuggestions(false)
+                  }
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && tagInput.trim()) {
+                    e.preventDefault()
+                    const tag = tagInput.trim().toLowerCase()
+                    if (!hashtags.includes(tag)) setHashtags(prev => [...prev, tag])
+                    setTagInput(''); setShowTagSuggestions(false)
+                  }
+                }}
+                placeholder="Add hashtags (press Enter)"
+                className="flex-1 bg-transparent text-sm text-white outline-none placeholder-slate-500"
+              />
+            </div>
+            {showTagSuggestions && tagSuggestions.length > 0 && (
+              <div className="absolute left-0 right-0 top-full mt-1 bg-[#0d1630] border border-white/10 rounded-xl p-1 z-10 shadow-xl">
+                {tagSuggestions.map(tag => (
+                  <button key={tag} onClick={() => {
+                    if (!hashtags.includes(tag)) setHashtags(prev => [...prev, tag])
+                    setTagInput(''); setShowTagSuggestions(false)
+                  }} className="w-full text-left px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-white/5 transition-colors">
+                    #{tag}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
 
         {error && <p className="text-xs text-red-400 bg-red-500/10 px-3 py-2 rounded-xl">{error}</p>}
 
@@ -426,7 +498,12 @@ export default function Feed({ profile }) {
     const load = async () => {
       setLoading(true)
       const myId = profile?.id
-      const { data: rawPosts } = await supabase.from('posts').select('*,profiles:user_id(id,first_name,last_name,avatar_url)').order('created_at', { ascending: false }).limit(40)
+      // Transient visibility: exclude own posts (they appear on Profile Page only)
+      // Also exclude flagged posts
+      let q = supabase.from('posts').select('*,profiles:user_id(id,first_name,last_name,avatar_url)').order('created_at', { ascending: false }).limit(40)
+      if (myId) q = q.neq('user_id', myId)
+      q = q.neq('is_flagged', true)
+      const { data: rawPosts } = await q
       if (!rawPosts || !Array.isArray(rawPosts) || rawPosts.length === 0) { setPosts([]); setLoading(false); return }
 
       const ids = rawPosts.map(p => p?.id).filter(Boolean)
