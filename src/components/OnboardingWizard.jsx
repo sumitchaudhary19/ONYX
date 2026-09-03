@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { User, Lock, ChevronRight, ChevronLeft, Calendar, Camera, X, Check, XCircle, Loader2, Sparkles, ScanLine, ShieldCheck, Mail } from 'lucide-react'
+import { User, Lock, ChevronRight, ChevronLeft, Calendar, Camera, X, Check, XCircle, Loader2, Sparkles, ScanLine, ShieldCheck, Mail, Beaker } from 'lucide-react'
 import { supabase } from '../supabaseClient'
 import ComingSoonToast from './ComingSoonToast'
 import ForgotPasswordModal from './ForgotPasswordModal'
@@ -443,7 +443,147 @@ function StepWelcome({ onNext }) {
 }
 
 // ── Step 2: Auth Selection ─────────────────────────────────────────────────
-function StepAuthSelection({ onGoogle, onEmailSignup, loading, onForgotPassword }) {
+// ── Guest Mode Modal ───────────────────────────────────────────────────────
+function GuestModal({ onClose, onGuestSignup }) {
+  const [guestEmail, setGuestEmail] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [success, setSuccess] = useState(false)
+
+  const handleGuestSubmit = async () => {
+    const email = guestEmail.trim().toLowerCase()
+    if (!email.endsWith('@gmail.com')) {
+      setError('Please enter a valid Gmail address.')
+      return
+    }
+    setLoading(true)
+    setError('')
+
+    try {
+      // Generate a strong random password (user won't need to know it)
+      const randomPassword = 'Onyx_' + crypto.randomUUID().replace(/-/g, '').slice(0, 16) + '!1'
+
+      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+        email,
+        password: randomPassword,
+      })
+
+      if (signUpError) {
+        if (signUpError.message?.includes('already registered')) {
+          setError('This email is already registered. Try logging in instead.')
+        } else {
+          setError(signUpError.message || 'Signup failed.')
+        }
+        setLoading(false)
+        return
+      }
+
+      const userId = signUpData?.user?.id
+      if (!userId) throw new Error('Failed to create account.')
+
+      // Store the password temporarily so they can log in if needed
+      localStorage.setItem('onyx_guest_temp_pw', randomPassword)
+
+      setSuccess(true)
+      setTimeout(() => {
+        onGuestSignup(userId, email)
+        onClose()
+      }, 1200)
+
+    } catch (err) {
+      console.error('[Guest] signup error:', err)
+      setError(err.message || 'Something went wrong.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[500] flex items-center justify-center bg-black/70 backdrop-blur-md px-4" onClick={onClose}>
+      <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }}
+        onClick={e => e.stopPropagation()}
+        className="w-full max-w-sm rounded-3xl p-6 flex flex-col gap-5"
+        style={{
+          background: 'linear-gradient(180deg, rgba(15,23,42,0.95) 0%, rgba(2,6,23,0.98) 100%)',
+          border: '1px solid rgba(255,255,255,0.1)',
+          boxShadow: '0 20px 60px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.05)',
+          backdropFilter: 'blur(20px)',
+        }}>
+
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'linear-gradient(135deg, rgba(245,158,11,0.2), rgba(249,115,22,0.2))', border: '1px solid rgba(245,158,11,0.3)' }}>
+              <Beaker className="w-5 h-5 text-amber-400" />
+            </div>
+            <div>
+              <h3 className="text-[16px] font-bold text-white">Guest Test Access</h3>
+              <p className="text-[11px] text-slate-500">Beta testing mode</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate-400 transition-colors">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Info */}
+        <div className="px-3 py-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20">
+          <p className="text-[12px] text-amber-300/80 leading-relaxed">
+            🧪 This is a <span className="font-bold text-amber-300">temporary demo account</span> for testing ONYX before the official launch. Guest data may be wiped after the beta period.
+          </p>
+        </div>
+
+        {success ? (
+          <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} className="flex flex-col items-center gap-3 py-4">
+            <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', stiffness: 400, damping: 15 }}
+              className="w-14 h-14 rounded-full bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center">
+              <Check className="w-7 h-7 text-emerald-400" />
+            </motion.div>
+            <p className="text-sm font-semibold text-emerald-400">Account created! Setting up...</p>
+          </motion.div>
+        ) : (
+          <>
+            {/* Email Input */}
+            <div className="flex flex-col gap-1.5">
+              <div className="capsule-field">
+                <Mail size={16} className="text-slate-500 flex-shrink-0" />
+                <input type="email" placeholder="your.name@gmail.com" value={guestEmail}
+                  onChange={e => setGuestEmail(e.target.value.trim().toLowerCase())}
+                  onKeyDown={e => e.key === 'Enter' && handleGuestSubmit()}
+                  className="bg-transparent flex-1 outline-none text-white text-sm placeholder:text-slate-600" />
+              </div>
+              {guestEmail.length > 3 && !guestEmail.endsWith('@gmail.com') && (
+                <p className="text-xs text-red-400 ml-4">Please use a @gmail.com address</p>
+              )}
+            </div>
+
+            {error && (
+              <motion.p initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }}
+                className="text-xs text-red-400 text-center">{error}</motion.p>
+            )}
+
+            {/* Submit */}
+            <motion.button onClick={handleGuestSubmit}
+              disabled={loading || !guestEmail.endsWith('@gmail.com')}
+              whileTap={{ scale: 0.97 }}
+              className="w-full py-3.5 rounded-full font-bold text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-40"
+              style={{
+                background: 'linear-gradient(135deg, #f59e0b, #f97316)',
+                color: '#fff',
+                boxShadow: '0 4px 20px rgba(245,158,11,0.4)',
+              }}>
+              {loading ? <><Loader2 size={16} className="animate-spin" /> Creating account...</> : <><Beaker size={16} /> Enter Guest Mode</>}
+            </motion.button>
+          </>
+        )}
+      </motion.div>
+    </motion.div>
+  )
+}
+
+// ── Step 2: Auth Selection ─────────────────────────────────────────────────
+function StepAuthSelection({ onGoogle, onEmailSignup, onGuestSignup, loading, onForgotPassword }) {
   const [authTab, setAuthTab] = useState('signup') // 'signup' | 'login'
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -452,6 +592,7 @@ function StepAuthSelection({ onGoogle, onEmailSignup, loading, onForgotPassword 
   
   const [loginAttempts, setLoginAttempts] = useState(0)
   const [lockoutUntil, setLockoutUntil] = useState(null)
+  const [showGuestModal, setShowGuestModal] = useState(false)
 
   const handleLogin = async (e) => {
     e.preventDefault()
@@ -583,6 +724,18 @@ function StepAuthSelection({ onGoogle, onEmailSignup, loading, onForgotPassword 
           )}
         </div>
       </div>
+
+      {/* Guest Mode Button */}
+      <div className="w-full max-w-xs mt-3">
+        <button onClick={() => setShowGuestModal(true)}
+          className="w-full py-2.5 rounded-full text-xs font-semibold text-amber-400/80 bg-amber-500/10 border border-amber-500/15 hover:bg-amber-500/15 hover:text-amber-400 transition-all flex items-center justify-center gap-2">
+          <Beaker size={14} /> Test the App (Guest Mode)
+        </button>
+      </div>
+
+      <AnimatePresence>
+        {showGuestModal && <GuestModal onClose={() => setShowGuestModal(false)} onGuestSignup={onGuestSignup} />}
+      </AnimatePresence>
     </div>
   )
 }
@@ -621,7 +774,8 @@ function StepCredentials({ formData, setFormData, authMode, usernameStatus, onNe
   const validUsername = formData.username.length >= 3 && usernameStatus === 'available'
   const validEmail = formData.email.endsWith('@mnit.ac.in')
   const validPassword = PASSWORD_REGEX.test(formData.password)
-  const valid = validUsername && (authMode === 'google' || (validEmail && validPassword))
+  // Guests skip email/password (already created), Google skips too, only email mode needs both
+  const valid = validUsername && (authMode === 'google' || authMode === 'guest' || (validEmail && validPassword))
 
   const statusIcon = {
     checking: <Loader2 size={16} className="text-blue-400 animate-spin" />,
@@ -919,6 +1073,8 @@ export default function OnboardingWizard({ onComplete, session }) {
   const [usernameStatus, setUsernameStatus] = useState('idle')
   const [showForgotPassword, setShowForgotPassword] = useState(false)
   const [detected, setDetected] = useState(null) // parsed MNIT email data
+  const [isGuest, setIsGuest] = useState(false)
+  const [guestUserId, setGuestUserId] = useState(null)
   const debounceRef = useRef(null)
 
   const [formData, setFormData] = useState({
@@ -1015,6 +1171,16 @@ export default function OnboardingWizard({ onComplete, session }) {
     setStep(4) // Jump directly to StepName
   }
 
+  // ── Guest Signup ──
+  const handleGuestSignup = (userId, email) => {
+    setIsGuest(true)
+    setGuestUserId(userId)
+    setAuthMode('guest')
+    setFormData(p => ({ ...p, email }))
+    setDirection(1)
+    setStep(4) // Jump to StepName
+  }
+
   // ── Final Submit ──
   const handleSubmit = async () => {
     if (submitting) return
@@ -1023,7 +1189,10 @@ export default function OnboardingWizard({ onComplete, session }) {
     try {
       let userId
 
-      if (authMode === 'email') {
+      if (authMode === 'guest') {
+        // Guest user already created via GuestModal
+        userId = guestUserId
+      } else if (authMode === 'email') {
         if (!formData.email.endsWith('@mnit.ac.in')) throw new Error('Only @mnit.ac.in emails are allowed.')
         const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
           email: formData.email,
@@ -1061,6 +1230,7 @@ export default function OnboardingWizard({ onComplete, session }) {
         branch: formData.branch || null,
         section: formData.section || null,
         is_pulse_active: formData.isPulseActive,
+        is_guest: isGuest,
         ...(avatarUrl ? { avatar_url: avatarUrl } : {}),
       }
 
@@ -1127,7 +1297,7 @@ export default function OnboardingWizard({ onComplete, session }) {
             className="absolute inset-0">
 
             {step === 1 && <StepWelcome onNext={goNext} />}
-            {step === 2 && <StepAuthSelection onGoogle={handleGoogle} onEmailSignup={handleEmailSignup} loading={loading} onForgotPassword={() => setShowForgotPassword(true)} />}
+            {step === 2 && <StepAuthSelection onGoogle={handleGoogle} onEmailSignup={handleEmailSignup} onGuestSignup={handleGuestSignup} loading={loading} onForgotPassword={() => setShowForgotPassword(true)} />}
             {/* Step 3: Smart Decrypt — only shown for MNIT Google users */}
             {step === 3 && detected && (
               <StepSmartDecrypt detected={detected} onNext={goNext} />
