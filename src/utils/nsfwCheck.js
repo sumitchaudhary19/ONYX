@@ -23,10 +23,12 @@ async function loadModel() {
   modelPromise = (async () => {
     try {
       // Dynamic imports to keep TF.js + nsfwjs out of the main bundle
-      await import('@tensorflow/tfjs')
+      const tfjs = await import('@tensorflow/tfjs')
+      // Make tf available globally as nsfwjs might expect it when dynamically imported
+      window.tf = tfjs.default || tfjs
       const nsfwjs = await import('nsfwjs')
-      // Use the MobileNet v2 model (smaller, faster)
-      const model = await nsfwjs.load('MobileNetV2')
+      // Use the default model (InceptionV3) which is more reliable if the MobileNetV2 URL is blocked
+      const model = await nsfwjs.load()
       nsfwModel = model
       modelLoading = false
       return model

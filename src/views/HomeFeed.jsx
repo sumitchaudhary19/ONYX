@@ -334,14 +334,14 @@ export default function HomeFeed({ profile }) {
         const interestPostIds = [...new Set((taggedPostIds || []).map(t => t.post_id))]
 
         if (interestPostIds.length > 0) {
-          let iq = supabase
-            .from('posts')
-            .select('*,profiles:user_id(id,first_name,last_name,avatar_url)')
-            .in('id', interestPostIds)
-            .neq('user_id', myId)
-            .neq('is_flagged', true)
-            .order('created_at', { ascending: false })
-            .limit(14) // 70% of 20
+            let iq = supabase
+              .from('posts')
+              .select('*,profiles:user_id(id,first_name,last_name,avatar_url)')
+              .in('id', interestPostIds)
+              .neq('user_id', myId)
+              .or('is_flagged.eq.false,is_flagged.is.null')
+              .order('created_at', { ascending: false })
+              .limit(14) // 70% of 20
 
           if (profile?.tenant_id) iq = iq.eq('tenant_id', profile.tenant_id)
           else iq = iq.is('tenant_id', null)
@@ -357,7 +357,7 @@ export default function HomeFeed({ profile }) {
         .from('posts')
         .select('*,profiles:user_id(id,first_name,last_name,avatar_url)')
         .neq('user_id', myId)
-        .neq('is_flagged', true)
+        .or('is_flagged.eq.false,is_flagged.is.null')
         .order('created_at', { ascending: false })
         .limit(20 - interestPosts.length) // Dynamically fill the rest of the 20 slots
 
