@@ -344,7 +344,7 @@ export default function HomeFeed({ profile }) {
               .limit(14) // 70% of 20
 
           if (profile?.tenant_id) iq = iq.eq('tenant_id', profile.tenant_id)
-          else iq = iq.is('tenant_id', null)
+          else if (!profile?.is_guest) iq = iq.is('tenant_id', null)
 
           const { data } = await iq
           interestPosts = data || []
@@ -362,7 +362,7 @@ export default function HomeFeed({ profile }) {
         .limit(20 - interestPosts.length) // Dynamically fill the rest of the 20 slots
 
       if (profile?.tenant_id) lq = lq.eq('tenant_id', profile.tenant_id)
-      else lq = lq.is('tenant_id', null)
+      else if (!profile?.is_guest) lq = lq.is('tenant_id', null)
 
       if (excludeIds.length > 0) {
         // Supabase doesn't have .not_in natively, so we'll filter client-side
