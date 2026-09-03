@@ -28,8 +28,27 @@ function CreatePostModal({ currentProfile, onClose, onPosted }) {
   const [tagSuggestions, setTagSuggestions] = useState([])
   const [showTagSuggestions, setShowTagSuggestions] = useState(false)
 
-  const pickFile = (e) => {
+  const pickFile = async (e) => {
     const f = e.target.files?.[0]; if (!f) return
+    
+    if (f.type.startsWith('image/')) {
+      setScanning(true)
+      setError(null)
+      try {
+        const result = await scanImage(f)
+        if (!result.safe) {
+          setError('Upload blocked: Inappropriate content detected.')
+          setScanning(false)
+          // Abort process, clear input
+          if (fileRef.current) fileRef.current.value = ''
+          return
+        }
+      } catch (err) {
+        console.error('NSFW scan error:', err)
+      }
+      setScanning(false)
+    }
+
     setFile(f); setPreview(URL.createObjectURL(f))
   }
 
@@ -37,18 +56,6 @@ function CreatePostModal({ currentProfile, onClose, onPosted }) {
     if (!file) { setError('Please select a photo or video.'); return }
     setUploading(true); setError(null)
     try {
-      // NSFW scan for images
-      if (file.type.startsWith('image/')) {
-        setScanning(true)
-        const result = await scanImage(file)
-        setScanning(false)
-        if (!result.safe) {
-          setError('Upload blocked: Inappropriate content detected.')
-          setFile(null); setPreview(null)
-          setUploading(false)
-          return
-        }
-      }
       const ext = file.name.split('.').pop()
       const path = `${currentProfile.id}/${Date.now()}.${ext}`
       const { error: upErr } = await supabase.storage.from('onyx_posts').upload(path, file, { contentType: file.type })
@@ -151,7 +158,7 @@ function CreatePostModal({ currentProfile, onClose, onPosted }) {
                     setTagInput(''); setShowTagSuggestions(false)
                   }
                 }}
-                placeholder="Add hashtags (press Enter)"
+                placeholder="Add Hashtags (e.g., #campus, #tech)"
                 className="flex-1 bg-transparent text-sm text-white outline-none placeholder-slate-500"
               />
             </div>
@@ -174,7 +181,7 @@ function CreatePostModal({ currentProfile, onClose, onPosted }) {
 
         <motion.button onClick={submit} disabled={uploading || scanning} whileTap={{ scale: 0.97 }}
           className="py-3.5 rounded-xl bg-gradient-to-r from-blue-600 to-violet-600 text-white font-semibold text-sm flex items-center justify-center gap-2 disabled:opacity-50 shadow-[0_4px_20px_rgba(99,102,241,0.4)]">
-          {scanning ? <><Loader2 className="w-4 h-4 animate-spin" /> Scanning image...</> : uploading ? 'Uploading…' : 'Share Post'}
+          {scanning ? <><Loader2 className="w-4 h-4 animate-spin" /> Analyzing image security...</> : uploading ? 'Uploading…' : 'Share Post'}
         </motion.button>
       </motion.div>
     </motion.div>

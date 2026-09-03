@@ -359,7 +359,7 @@ export default function HomeFeed({ profile }) {
         .neq('user_id', myId)
         .neq('is_flagged', true)
         .order('created_at', { ascending: false })
-        .limit(topTags.length > 0 ? 6 : 20) // 30% if we have interests, otherwise full
+        .limit(20 - interestPosts.length) // Dynamically fill the rest of the 20 slots
 
       if (profile?.tenant_id) lq = lq.eq('tenant_id', profile.tenant_id)
       else lq = lq.is('tenant_id', null)
